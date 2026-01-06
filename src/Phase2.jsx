@@ -11,9 +11,9 @@ const CARD_TYPES = {
   HEAVY_MAGIC: { name: 'Heavy Magic', damage: 6, type: 'attack', attackType: 'magic' },
   
   // Buff Cards
-  FOCUS: { name: 'Focus', type: 'buff', buffType: 'focus', damageModifier: 1, extraAttacks: 0 },
-  CHARGE: { name: 'Charge', type: 'buff', buffType: 'charge', damageModifier: 2, extraAttacks: 0, risk: 'stun' },
-  READY: { name: 'Ready', type: 'buff', buffType: 'ready', damageModifier: 0, extraAttacks: 2 },
+  FOCUS: { name: 'Focus', type: 'buff', buffType: 'focus', extraAttacks: 1 },
+  CHARGE: { name: 'Charge', type: 'buff', buffType: 'charge', extraAttacks: 2, risk: 'stun' },
+  READY: { name: 'Ready', type: 'buff', buffType: 'ready', extraAttacks: 1 },
   FEINT: { name: 'Feint', type: 'buff', buffType: 'feint', damageModifier: -1, unavoidable: true },
   
   // Defense Cards
@@ -133,7 +133,6 @@ function App() {
       setPlayer2Hand(prev => prev.filter(c => c.id !== card.id));
     }
     setActiveBuff(card);
-    addLog(`${card.name} activated, remaining attacks: ${card.extraAttacks}!`);
     const totalAttacks = 1 + card.extraAttacks;
     setRemainingAttacks(totalAttacks);
     addLog(`🔥 ${currentTurn === 'player1' ? 'Player 1' : 'Player 2'} plays ${card.name}! ${totalAttacks} attacks available!`);
@@ -176,22 +175,6 @@ function App() {
     let attackerDamage = 0;
     let attackEvaded = false;
 
-    if (activeBuff) {
-        switch(activeBuff.buffType) {
-            case 'focus':
-                defenderDamage = Math.max(0, defenderDamage + activeBuff.damageModifier);   
-                break;
-            case 'ready':
-                // No damage modification for Ready buff
-                break;
-            case 'charge':
-                defenderDamage = Math.max(0, defenderDamage + activeBuff.damageModifier);   
-                break;
-            default:
-                break;
-        }
-    }
-
     if (defenseCard) {
       if (defender === 'player1') {
         setPlayer1Hand(prev => prev.filter(c => c.id !== defenseCard.id));
@@ -199,7 +182,7 @@ function App() {
         setPlayer2Hand(prev => prev.filter(c => c.id !== defenseCard.id));
       }
       if (isFeint) {
-        addLog(`💫 Feint! ${defenseCard.name} has no effect! Get Full Damage 💥!`);
+        addLog(`💫 Feint! ${defenseCard.name} has no effect!`);
       } else {
         if (defenseCard.defenseType === 'evade') {
           defenderDamage = 0;
@@ -245,10 +228,7 @@ function App() {
     }
 
     if (activeBuff && activeBuff.buffType === 'charge' && defenderDamage === 0) {
-        
       addLog(`⚠️ CHARGE FAIL! 0 damage = stunned next turn!`);
-       endTurn();
-        
     }
 
     setWaitingForReaction(false);
@@ -376,7 +356,7 @@ function App() {
         color = 'bg-indigo-900 border-indigo-600';
         icon = '💫';
       }
-      return { color, icon, label: `+${card.damageModifier || 0}` };
+      return { color, icon, label: `+${card.extraAttacks || 0}` };
     } else {
       let color = 'bg-blue-900 border-blue-600';
       let icon = '🛡️';
@@ -486,18 +466,14 @@ function App() {
           {gameStarted && !waitingForReaction && !gameOver && !waitingForNextAttack && (
             <div className="space-y-3">
               {!showDrawOption && !waitingForDiscard && (
-                <div>
                 <button onClick={endTurn} className="bg-purple-600 hover:bg-purple-700 px-8 py-3 rounded-lg font-bold">
                   End Turn
                 </button>
-                </div>
               )}
               {showDrawOption && getCurrentPlayerHand().length === 5 && !waitingForDiscard && !drawUsedThisTurn && (
-                <div>
                 <button onClick={drawOneAndDiscard} className="bg-cyan-600 hover:bg-cyan-700 px-8 py-3 rounded-lg font-bold">
                   Draw & Discard
                 </button>
-                </div>
               )}
               {showDrawOption && !waitingForDiscard && (
                 <button onClick={confirmEndTurn} className="bg-purple-600 hover:bg-purple-700 px-8 py-3 rounded-lg font-bold">
