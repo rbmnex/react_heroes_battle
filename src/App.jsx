@@ -4,6 +4,8 @@ import { useState } from 'react';
 const CARD_TYPES = {
   NORMAL_ATTACK: { name: 'Normal Attack', damage: 4, type: 'attack', attackType: 'physical' },
   HEAVY_ATTACK: { name: 'Heavy Attack', damage: 6, type: 'attack', attackType: 'physical' },
+  NORMAL_SHOT: { name: 'Normal Shot', damage: 4, type: 'attack', attackType: 'physical' },
+  CHARGE_SHOT: { name: 'Charge Shot', damage: 6, type: 'attack', attackType: 'physical' },
   NORMAL_MAGIC: { name: 'Normal Magic', damage: 4, type: 'attack', attackType: 'magic' },
   HEAVY_MAGIC: { name: 'Heavy Magic', damage: 6, type: 'attack', attackType: 'magic' },
   FOCUS: { name: 'Focus', type: 'buff', buffType: 'focus', damageModifier: 1, extraAttacks: 0 },
@@ -59,14 +61,21 @@ function App() {
   const [attacksUsedThisTurn, setAttacksUsedThisTurn] = useState(0);
   const [selectingTarget, setSelectingTarget] = useState(false);
   const [pendingAttackCard, setPendingAttackCard] = useState(null);
+  const [turnCount, setTurnCount] = useState(0);
+  const [heroAttackCounts, setHeroAttackCounts] = useState({});
+  const [isFirstAttackOfHero, setIsFirstAttackOfHero] = useState(false);
 
   const generateCard = () => {
     const types = [
       CARD_TYPES.NORMAL_ATTACK, CARD_TYPES.NORMAL_ATTACK,
-      CARD_TYPES.HEAVY_ATTACK, CARD_TYPES.NORMAL_MAGIC,
-      CARD_TYPES.HEAVY_MAGIC, CARD_TYPES.FOCUS,
-      CARD_TYPES.CHARGE, CARD_TYPES.READY, CARD_TYPES.FEINT,
-      CARD_TYPES.BLOCK, CARD_TYPES.BLOCK, CARD_TYPES.EVADE,
+      CARD_TYPES.HEAVY_ATTACK, CARD_TYPES.HEAVY_ATTACK,
+      CARD_TYPES.NORMAL_MAGIC, CARD_TYPES.NORMAL_MAGIC,
+      CARD_TYPES.HEAVY_MAGIC, CARD_TYPES.HEAVY_MAGIC,
+      CARD_TYPES.NORMAL_SHOT,  CARD_TYPES.NORMAL_SHOT,
+      CARD_TYPES.CHARGE_SHOT, CARD_TYPES.CHARGE_SHOT, 
+      CARD_TYPES.FOCUS, CARD_TYPES.CHARGE, 
+      CARD_TYPES.READY, CARD_TYPES.FEINT,
+      CARD_TYPES.BLOCK, CARD_TYPES.EVADE,
       CARD_TYPES.COUNTER, CARD_TYPES.DEFLECT
     ];
     return { ...types[Math.floor(Math.random() * types.length)], id: Date.now() + Math.random() };
@@ -176,18 +185,42 @@ function App() {
   };
 
   const playAttack = (card, targetHeroId = null) => {
+    const attacker = getActiveHero();
+    
+    // Check if this hero can use this attack card
+    const canUseAttack = (hero, attackCard) => {
+      const jobName = hero.job.name;
+      if (jobName === 'Melee' && (attackCard.name === 'Normal Attack' || attackCard.name === 'Heavy Attack')) return true;
+      if (jobName === 'Ranged' && (attackCard.name === 'Normal Shot' || attackCard.name === 'Charge Shot')) return true;
+      if (jobName === 'Mage' && (attackCard.name === 'Normal Magic' || attackCard.name === 'Heavy Magic')) return true;
+      return false;
+    };
+
+    if (!canUseAttack(attacker, card)) {
+      addLog(`⚠️ ${attacker.name} (${attacker.job.name}) cannot use ${card.name}!`);
+      return;
+    }
+
     // If no target selected yet, enter target selection mode
     if (!targetHeroId) {
+      const heroAttackCount = heroAttackCounts[attacker.id] || 0;
+      const isFirst = heroAttackCount === 0;
+      
       setPendingAttackCard(card);
       setSelectingTarget(true);
+      setIsFirstAttackOfHero(isFirst);
       addLog(`Select target for ${card.name}...`);
       return;
     }
 
     const maxAttacks = activeBuff ? (1 + activeBuff.extraAttacks) : 1;
-    if (attacksUsedThisTurn >= maxAttacks) {
-      addLog(`⚠️ Max ${maxAttacks} attack${maxAttacks > 1 ? 's' : ''} per turn!`);
+    const heroAttackCount = heroAttackCounts[attacker.id] || 0;
+    if (heroAttackCount >= maxAttacks) {
+      addLog(`⚠️ ${attacker.name} has already attacked ${maxAttacks} time${maxAttacks > 1 ? 's' : ''} this turn!`);
+      setSelectingTarget(false);
       return;
+    } else {
+      setIsFirstAttackOfHero(true);
     }
 
     const opponent = currentTurn === 'player1' ? 'player2' : 'player1';
@@ -214,7 +247,6 @@ function App() {
       }
     }
 
-    const attacker = getActiveHero();
     setPendingAttack({
       card: { ...card, damage: finalDamage },
       attacker: currentTurn,
@@ -227,10 +259,14 @@ function App() {
     setWaitingForReaction(true);
     setSelectingTarget(false);
     setPendingAttackCard(null);
+    setWaitingForNextAttack(false);
 
     const icon = card.attackType === 'magic' ? '🔮' : '⚔️';
     addLog(`${attacker.name} attacks ${targetHero.name} with ${card.name} ${icon} (${finalDamage} dmg)${isFeint ? ' [UNAVOIDABLE]' : ''}!`);
-    setAttacksUsedThisTurn(prev => prev + 1);
+    setHeroAttackCounts(prev => ({
+      ...prev,
+      [attacker.id]: (prev[attacker.id] || 0) + 1
+    }));
   };
 
   const resolveAttack = (defenseCard = null) => {
@@ -330,9 +366,15 @@ function App() {
     if (activeBuff && remainingAttacks > 1) {
       setRemainingAttacks(prev => prev - 1);
       setWaitingForNextAttack(true);
+      setSelectingTarget(false);
+      setPendingAttackCard(null);
       addLog(`🔥 ${remainingAttacks - 1} attacks left!`);
     } else {
-      endCombatSequence(newHeroes);
+      setActiveBuff(null);
+      setRemainingAttacks(0);
+      setWaitingForNextAttack(false);
+      setSelectingTarget(false);
+      setPendingAttackCard(null);
     }
   };
 
@@ -397,12 +439,25 @@ function App() {
     if (waitingForReaction) resolveAttack(null);
   };
 
+  const cancelAttack = () => {
+    setSelectingTarget(false);
+    setPendingAttackCard(null);
+    setIsFirstAttackOfHero(false);
+    addLog('Attack cancelled!');
+  };
+
   const confirmEndTurn = () => {
     const nextPlayer = currentTurn === 'player1' ? 'player2' : 'player1';
     setCurrentTurn(nextPlayer);
     setActiveHeroIndex(0);
     setDrawUsedThisTurn(false);
     setAttacksUsedThisTurn(0);
+    setActiveBuff(null);
+    setRemainingAttacks(0);
+    setWaitingForNextAttack(false);
+    setTurnCount(prev => prev + 1);
+    setHeroAttackCounts({});
+    setIsFirstAttackOfHero(false);
 
     if (nextPlayer === 'player1') {
       setPlayer1Hand(drawCardsToFive(player1Hand, 'Player 1'));
@@ -434,9 +489,22 @@ function App() {
     setAttacksUsedThisTurn(0);
     setSelectingTarget(false);
     setPendingAttackCard(null);
+    setTurnCount(0);
+    setHeroAttackCounts({});
+    setIsFirstAttackOfHero(false);
   };
 
   const getCurrentPlayerHand = () => currentTurn === 'player1' ? player1Hand : player2Hand;
+
+  const canHeroUseCard = (hero, card) => {
+    if (card.type !== 'attack') return true; // Non-attack cards can always be used
+    if(hero.hp <= 0) return false; // Defeated heroes cannot use attack cards
+    const jobName = hero.job.name;
+    if (jobName === 'Melee' && (card.name === 'Normal Attack' || card.name === 'Heavy Attack')) return true;
+    if (jobName === 'Ranged' && (card.name === 'Normal Shot' || card.name === 'Charge Shot')) return true;
+    if (jobName === 'Mage' && (card.name === 'Normal Magic' || card.name === 'Heavy Magic')) return true;
+    return false;
+  };
 
   const displayHand = waitingForReaction
     ? (pendingAttack.defender === 'player1' ? player1Hand : player2Hand)
@@ -448,9 +516,18 @@ function App() {
 
   const getCardVisual = (card) => {
     if (card.type === 'attack') {
+      let atkColor = 'bg-red-900 border-red-600';
+      let atkIcon = '⚔️';
+      if(card.attackType === 'magic') {
+        atkColor = 'bg-purple-900 border-purple-600';
+        atkIcon = '🔮';
+      } else if(card.attackType === 'ranged') {
+        atkColor = 'bg-green-900 border-green-600';
+        atkIcon = '🏹';
+      }
       return {
-        color: card.attackType === 'magic' ? 'bg-purple-900 border-purple-600' : 'bg-red-900 border-red-600',
-        icon: card.attackType === 'magic' ? '🔮' : '⚔️',
+        color: atkColor,
+        icon: atkIcon,
         label: card.damage
       };
     } else if (card.type === 'buff') {
@@ -508,11 +585,19 @@ function App() {
             {heroes.player1.map((hero, idx) => (
               <div
                 key={hero.id}
-                onClick={() => selectingTarget && selectTarget(hero.id)}
-                className={`bg-gray-800 p-4 rounded-lg border-4 transition-all ${hero.defeated ? 'opacity-40 border-gray-700' :
+                onClick={() => {
+                  if (selectingTarget) {
+                    selectTarget(hero.id);
+                  } else if (currentTurn === 'player1' && !waitingForReaction && !selectingTarget) {
+                    setActiveHeroIndex(idx);
+                    addLog(`${hero.name} selected!`);
+                  }
+                }}
+                className={`bg-gray-800 p-4 rounded-lg border-4 transition-all cursor-pointer ${hero.defeated ? 'opacity-40 border-gray-700' :
                   currentTurn === 'player1' && idx === activeHeroIndex ? 'border-blue-500 shadow-lg' :
-                    selectingTarget ? 'border-green-500 cursor-pointer hover:border-green-400' :
-                      'border-gray-600'
+                    selectingTarget ? 'border-green-500 hover:border-green-400' :
+                      currentTurn === 'player1' && !waitingForReaction ? 'border-blue-400 hover:border-blue-300' :
+                        'border-gray-600'
                   }`}
               >
                 <div className="flex justify-between items-center mb-2">
@@ -544,11 +629,19 @@ function App() {
             {heroes.player2.map((hero, idx) => (
               <div
                 key={hero.id}
-                onClick={() => selectingTarget && selectTarget(hero.id)}
-                className={`bg-gray-800 p-4 rounded-lg border-4 transition-all ${hero.defeated ? 'opacity-40 border-gray-700' :
+                onClick={() => {
+                  if (selectingTarget) {
+                    selectTarget(hero.id);
+                  } else if (currentTurn === 'player2' && !waitingForReaction && !selectingTarget) {
+                    setActiveHeroIndex(idx);
+                    addLog(`${hero.name} selected!`);
+                  }
+                }}
+                className={`bg-gray-800 p-4 rounded-lg border-4 transition-all cursor-pointer ${hero.defeated ? 'opacity-40 border-gray-700' :
                   currentTurn === 'player2' && idx === activeHeroIndex ? 'border-red-500 shadow-lg' :
-                    selectingTarget ? 'border-green-500 cursor-pointer hover:border-green-400' :
-                      'border-gray-600'
+                    selectingTarget ? 'border-green-500 hover:border-green-400' :
+                      currentTurn === 'player2' && !waitingForReaction ? 'border-red-400 hover:border-red-300' :
+                        'border-gray-600'
                   }`}
               >
                 <div className="flex justify-between items-center mb-2">
@@ -574,10 +667,19 @@ function App() {
         </div>
       </div>
       {/* Target Selection Banner */}
-      {selectingTarget && (
+      {selectingTarget && !isFirstAttackOfHero && (
+        <div className="max-w-7xl mx-auto mb-4" onClick={cancelAttack}>
+          <div className="bg-red-900 p-4 rounded-lg border-2 border-red-500 text-center">
+            <p className="text-xl font-bold">❌ {getActiveHero().name} already turn ended!</p>
+          </div>
+        </div>
+      )}
+
+      {/* First Attack Banner */}
+      {isFirstAttackOfHero && selectingTarget && pendingAttackCard && (
         <div className="max-w-7xl mx-auto mb-4">
-          <div className="bg-green-900 p-4 rounded-lg border-2 border-green-500 text-center">
-            <p className="text-xl font-bold">🎯 Select Target Hero (Click on opponent's hero)</p>
+          <div className="bg-blue-900 p-4 rounded-lg border-2 border-blue-400 text-center">
+            <p className="text-xl font-bold">✨ {getActiveHero().name} is ready to attack with {pendingAttackCard.name}! Select target...</p>
           </div>
         </div>
       )}
@@ -586,9 +688,11 @@ function App() {
       {!gameOver && (
         <div className="max-w-7xl mx-auto mb-8 text-center">
           {!gameStarted && (
-            <button onClick={startGame} className="bg-green-600 hover:bg-green-700 px-12 py-4 rounded-lg font-bold text-2xl">
-              Start 3v3 Battle
-            </button>
+            <div>
+              <button onClick={startGame} className="bg-green-600 hover:bg-green-700 px-12 py-4 rounded-lg font-bold text-2xl">
+                Start 3v3 Battle
+              </button>
+            </div>
           )}
 
           {waitingForReaction && pendingAttack && (
@@ -604,14 +708,18 @@ function App() {
 
           {gameStarted && !waitingForReaction && !gameOver && !waitingForNextAttack && !selectingTarget && (
             <div className="space-y-3">
-              {getCurrentPlayerHand().length === 5 && !waitingForDiscard && !drawUsedThisTurn && (
-                <button onClick={drawOneAndDiscard} className="bg-cyan-600 hover:bg-cyan-700 px-8 py-3 rounded-lg font-bold">
-                  Draw & Discard
-                </button>
+              {turnCount > 2 && getCurrentPlayerHand().length === 5 && !waitingForDiscard && !drawUsedThisTurn && (
+                <div>
+                  <button onClick={drawOneAndDiscard} className="bg-cyan-600 hover:bg-cyan-700 px-8 py-3 rounded-lg font-bold">
+                    Draw & Discard
+                  </button>
+                </div>
               )}
-              <button onClick={confirmEndTurn} className="bg-purple-600 hover:bg-purple-700 px-8 py-3 rounded-lg font-bold">
-                End Turn
-              </button>
+              <div>
+                <button onClick={confirmEndTurn} className="bg-purple-600 hover:bg-purple-700 px-8 py-3 rounded-lg font-bold">
+                  End Turn
+                </button>
+              </div>
               {waitingForDiscard && (
                 <div className="bg-orange-900 p-4 rounded-lg">
                   <p className="font-bold">🃏 Select card to discard</p>
@@ -638,9 +746,11 @@ function App() {
           </h3>
           <div className="flex gap-4 justify-center flex-wrap">
             {displayHand.map((card) => {
+              const activeHero = getActiveHero();
               const isPlayable = waitingForDiscard ? true :
                 waitingForReaction ? card.type === 'defense' :
-                  (card.type === 'attack' || (card.type === 'buff' && !activeBuff));
+                  card.type === 'attack' ? canHeroUseCard(activeHero, card) :
+                    (card.type === 'buff' && !activeBuff);
               const isNewlyDrawn = drawnCard && card.id === drawnCard.id;
               const visual = getCardVisual(card);
 
