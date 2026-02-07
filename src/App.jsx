@@ -1,12 +1,22 @@
 import { useState } from 'react';
 
+// Status Effects
+const STATUS_EFFECTS = {
+  BURN: { name: 'Burn', icon: '🔥', damagePerTurn: 2, duration: 3 },
+  FREEZE: { name: 'Freeze', icon: '❄️', skipTurn: true, duration: 1 },
+  BLEED: { name: 'Bleed', icon: '🩸', damageOnAction: 2, duration: 2 },
+  STUN: { name: 'Stun', icon: '💫', skipTurn: true, duration: 1 },
+  POISON: { name: 'Poison', icon: '☠️', damagePerTurn: 1, duration: 4 },
+  PARALYZE: { name: 'Paralyze', icon: '⚡', preventSkills: true, duration: 2 }
+};
+
 // Card data
 const CARD_TYPES = {
-  NORMAL_ATTACK: { name: 'Normal Attack', damage: 4, type: 'attack', attackType: 'physical' },
+  NORMAL_ATTACK: { name: 'Normal Attack', damage: 3, type: 'attack', attackType: 'physical' },
   HEAVY_ATTACK: { name: 'Heavy Attack', damage: 6, type: 'attack', attackType: 'physical' },
-  NORMAL_SHOT: { name: 'Normal Shot', damage: 4, type: 'attack', attackType: 'physical' },
-  CHARGE_SHOT: { name: 'Charge Shot', damage: 6, type: 'attack', attackType: 'physical' },
-  NORMAL_MAGIC: { name: 'Normal Magic', damage: 4, type: 'attack', attackType: 'magic' },
+  NORMAL_SHOT: { name: 'Normal Shot', damage: 3, type: 'attack', attackType: 'ranged' },
+  CHARGE_SHOT: { name: 'Charge Shot', damage: 6, type: 'attack', attackType: 'ranged' },
+  NORMAL_MAGIC: { name: 'Normal Magic', damage: 3, type: 'attack', attackType: 'magic' },
   HEAVY_MAGIC: { name: 'Heavy Magic', damage: 6, type: 'attack', attackType: 'magic' },
   FOCUS: { name: 'Focus', type: 'buff', buffType: 'focus', damageModifier: 1, extraAttacks: 0 },
   CHARGE: { name: 'Charge', type: 'buff', buffType: 'charge', damageModifier: 2, extraAttacks: 0, risk: 'stun' },
@@ -15,7 +25,16 @@ const CARD_TYPES = {
   BLOCK: { name: 'Block', defense: 4, type: 'defense', defenseType: 'block' },
   EVADE: { name: 'Evade', defense: 999, type: 'defense', defenseType: 'evade' },
   COUNTER: { name: 'Counter', defense: 0, type: 'defense', defenseType: 'counter', counterType: 'physical' },
-  DEFLECT: { name: 'Deflect', defense: 0, type: 'defense', defenseType: 'deflect', counterType: 'magic' }
+  DEFLECT: { name: 'Deflect', defense: 0, type: 'defense', defenseType: 'deflect', counterType: 'magic' },
+  // Add these new cards:
+  FIRE_MAGIC: { name: 'Fire Magic', damage: 0, type: 'attack', attackType: 'magic', element: 'fire', statusEffect: 'BURN' },
+  ICE_MAGIC: { name: 'Ice Magic', damage: 0, type: 'attack', attackType: 'magic', element: 'ice', statusEffect: 'FREEZE' },
+  WIND_MAGIC: { name: 'Wind Magic', damage: 0, type: 'attack', attackType: 'magic', element: 'wind', statusEffect: 'BLEED' },
+  EARTH_MAGIC: { name: 'Earth Magic', damage: 0, type: 'attack', attackType: 'magic', element: 'earth', statusEffect: 'STUN' },
+  IVY_MAGIC: { name: 'Ivy Magic', damage: 0, type: 'attack', attackType: 'magic', element: 'ivy', statusEffect: 'POISON' },
+  LIGHTNING_MAGIC: { name: 'Lightning Magic', damage: 0, type: 'attack', attackType: 'magic', element: 'lightning', statusEffect: 'PARALYZE' },
+  CURE: { name: 'Cure', type: 'support', effect: 'cleanse' },
+  HEAL: { name: 'Heal', heal: 8, type: 'support', effect: 'heal' },
 };
 
 // Job Classes
@@ -29,14 +48,14 @@ const JOB_CLASSES = {
 // Initial 3v3 hero setup
 const createInitialHeroes = () => ({
   player1: [
-    { id: 1, name: 'Hero 1', job: JOB_CLASSES.MELEE, hp: 60, maxHp: 60, defeated: false },
-    { id: 2, name: 'Hero 2', job: JOB_CLASSES.RANGED, hp: 45, maxHp: 45, defeated: false },
-    { id: 3, name: 'Hero 3', job: JOB_CLASSES.MAGE, hp: 40, maxHp: 40, defeated: false }
+    { id: 1, name: 'Swordman', job: JOB_CLASSES.MELEE, hp: 60, maxHp: 60, defeated: false, statusEffects: [] },
+    { id: 2, name: 'Archer', job: JOB_CLASSES.RANGED, hp: 45, maxHp: 45, defeated: false, statusEffects: [] },
+    { id: 3, name: 'Wizard', job: JOB_CLASSES.MAGE, hp: 40, maxHp: 40, defeated: false, statusEffects: [] }
   ],
   player2: [
-    { id: 4, name: 'Hero 4', job: JOB_CLASSES.MELEE, hp: 60, maxHp: 60, defeated: false },
-    { id: 5, name: 'Hero 5', job: JOB_CLASSES.RANGED, hp: 45, maxHp: 45, defeated: false },
-    { id: 6, name: 'Hero 6', job: JOB_CLASSES.MAGE, hp: 40, maxHp: 40, defeated: false }
+    { id: 4, name: 'Warrior', job: JOB_CLASSES.MELEE, hp: 60, maxHp: 60, defeated: false, statusEffects: [] },
+    { id: 5, name: 'Sorceress', job: JOB_CLASSES.MAGE, hp: 40, maxHp: 40, defeated: false, statusEffects: [] },
+    { id: 6, name: 'Cleric', job: JOB_CLASSES.SUPPORT, hp: 40, maxHp: 40, defeated: false, statusEffects: [] }
   ]
 });
 
@@ -64,9 +83,11 @@ function App() {
   const [turnCount, setTurnCount] = useState(0);
   const [heroAttackCounts, setHeroAttackCounts] = useState({});
   const [isFirstAttackOfHero, setIsFirstAttackOfHero] = useState(false);
+  const [statusEffectLog, setStatusEffectLog] = useState([]);
 
-  const generateCard = () => {
-    const types = [
+  // Modified: Only Mage heroes can draw elemental magic cards
+  const generateCard = (forHero = null) => {
+    let types = [
       CARD_TYPES.NORMAL_ATTACK, CARD_TYPES.NORMAL_ATTACK,
       CARD_TYPES.HEAVY_ATTACK, CARD_TYPES.HEAVY_ATTACK,
       CARD_TYPES.NORMAL_MAGIC, CARD_TYPES.NORMAL_MAGIC,
@@ -76,22 +97,49 @@ function App() {
       CARD_TYPES.FOCUS, CARD_TYPES.CHARGE, 
       CARD_TYPES.READY, CARD_TYPES.FEINT,
       CARD_TYPES.BLOCK, CARD_TYPES.EVADE,
-      CARD_TYPES.COUNTER, CARD_TYPES.DEFLECT
+      CARD_TYPES.COUNTER, CARD_TYPES.DEFLECT,
     ];
+    // If Mage, add elemental magic
+    if (forHero && forHero.job && forHero.job.name === 'Mage') {
+      types = [
+        ...types,
+        CARD_TYPES.FIRE_MAGIC, CARD_TYPES.ICE_MAGIC,
+        CARD_TYPES.WIND_MAGIC, CARD_TYPES.EARTH_MAGIC,
+        CARD_TYPES.IVY_MAGIC, CARD_TYPES.LIGHTNING_MAGIC,
+      ];
+    }
+
+    if (forHero && forHero.job && forHero.job.name === 'Support') {
+      types = [
+        ...types,
+        CARD_TYPES.CURE, CARD_TYPES.HEAL,
+      ];
+    }
     return { ...types[Math.floor(Math.random() * types.length)], id: Date.now() + Math.random() };
   };
 
-  const drawCardsToFive = (currentHand, playerName) => {
+  // Pass hero to generateCard so Mage gets elemental magic
+  const drawCardsToFive = (currentHand, playerName, heroOverride = null) => {
     const cardsToDraw = 5 - currentHand.length;
     if (cardsToDraw <= 0) return currentHand;
-    const newCards = Array.from({ length: cardsToDraw }, generateCard);
+    let hero = heroOverride;
+    // If not provided, try to get from state
+    if (!hero && heroes[playerName] && heroes[playerName][activeHeroIndex]) {
+      hero = heroes[playerName][activeHeroIndex];
+    }
+    // If still not found (e.g. at game start), default to Mage
+    if (!hero) {
+      hero = { job: { name: 'Mage' } };
+    }
+    const newCards = Array.from({ length: cardsToDraw }, () => generateCard(hero));
     addLog(`${playerName} draws ${cardsToDraw} card${cardsToDraw > 1 ? 's' : ''}.`);
     return [...currentHand, ...newCards];
   };
 
   const drawOneAndDiscard = () => {
     if (drawUsedThisTurn) return;
-    const newCard = generateCard();
+    const hero = heroes[currentTurn][activeHeroIndex];
+    const newCard = generateCard(hero);
     setDrawnCard(newCard);
     setDrawUsedThisTurn(true);
     if (currentTurn === 'player1') {
@@ -116,8 +164,13 @@ function App() {
   };
 
   const startGame = () => {
-    const p1Cards = drawCardsToFive([], 'Player 1');
-    const p2Cards = drawCardsToFive([], 'Player 2');
+    // Use first hero for each player for initial hand
+    const initialHeroes = createInitialHeroes();
+    const p1Hero = initialHeroes.player1[0];
+    const p2Hero = initialHeroes.player2[0];
+    const p1Cards = drawCardsToFive([], 'player1', p1Hero);
+    const p2Cards = drawCardsToFive([], 'player2', p2Hero);
+    setHeroes(initialHeroes);
     setPlayer1Hand(p1Cards);
     setPlayer2Hand(p2Cards);
     setGameStarted(true);
@@ -126,6 +179,100 @@ function App() {
   };
 
   const addLog = (message) => setGameLog(prev => [...prev, message]);
+
+  // Apply status effect to a hero
+const applyStatusEffect = (heroId, player, statusType) => {
+  if (!STATUS_EFFECTS[statusType]) return;
+  
+  const statusEffect = {
+    ...STATUS_EFFECTS[statusType],
+    type: statusType,
+    turnsRemaining: STATUS_EFFECTS[statusType].duration
+  };
+
+  // Get hero name before state update
+  const hero = heroes[player].find(h => h.id === heroId);
+  
+  setHeroes(prev => ({
+    ...prev,
+    [player]: prev[player].map(h => 
+      h.id === heroId ? {
+        ...h,
+        statusEffects: [...h.statusEffects.filter(e => e.type !== statusType), statusEffect]
+      } : h
+    )
+  }));
+
+  if (hero) {
+    addLog(`${STATUS_EFFECTS[statusType].icon} ${hero.name} is ${statusType}!`);
+  }
+};
+
+// Process status effects at turn end
+const processStatusEffects = (player) => {
+  const team = heroes[player];
+  let newHeroes = { ...heroes };
+
+  team.forEach(hero => {
+    if (hero.defeated || hero.statusEffects.length === 0) return;
+
+    hero.statusEffects.forEach(effect => {
+      // Damage over time effects (Burn, Poison)
+      if (effect.damagePerTurn) {
+        const newHp = Math.max(0, hero.hp - effect.damagePerTurn);
+        newHeroes[player] = newHeroes[player].map(h =>
+          h.id === hero.id ? { ...h, hp: newHp, defeated: newHp === 0 } : h
+        );
+        addLog(`${effect.icon} ${hero.name} takes ${effect.damagePerTurn} ${effect.name} damage! (HP: ${newHp})`);
+      }
+    });
+
+    // Reduce duration
+    newHeroes[player] = newHeroes[player].map(h =>
+      h.id === hero.id ? {
+        ...h,
+        statusEffects: h.statusEffects
+          .map(e => ({ ...e, turnsRemaining: e.turnsRemaining - 1 }))
+          .filter(e => e.turnsRemaining > 0)
+      } : h
+    );
+  });
+
+  setHeroes(newHeroes);
+  return newHeroes;
+};
+
+// Check if hero can act (not frozen/stunned)
+const canHeroAct = (hero) => {
+  return !hero.statusEffects.some(e => e.skipTurn);
+};
+
+// Cleanse status effects
+const cleanseHero = (heroId, player) => {
+  setHeroes(prev => ({
+    ...prev,
+    [player]: prev[player].map(h =>
+      h.id === heroId ? { ...h, statusEffects: [] } : h
+    )
+  }));
+  const hero = heroes[player].find(h => h.id === heroId);
+  addLog(`✨ ${hero.name} cleansed of all status effects!`);
+};
+
+// Heal hero
+const healHero = (heroId, player, amount) => {
+  setHeroes(prev => ({
+    ...prev,
+    [player]: prev[player].map(h =>
+      h.id === heroId ? { 
+        ...h, 
+        hp: Math.min(h.maxHp, h.hp + amount) 
+      } : h
+    )
+  }));
+  const hero = heroes[player].find(h => h.id === heroId);
+  addLog(`💚 ${hero.name} healed ${amount} HP!`);
+};
 
   const checkVictory = (newHeroes) => {
     const p1Alive = newHeroes.player1.filter(h => !h.defeated).length;
@@ -192,7 +339,17 @@ function App() {
       const jobName = hero.job.name;
       if (jobName === 'Melee' && (attackCard.name === 'Normal Attack' || attackCard.name === 'Heavy Attack')) return true;
       if (jobName === 'Ranged' && (attackCard.name === 'Normal Shot' || attackCard.name === 'Charge Shot')) return true;
-      if (jobName === 'Mage' && (attackCard.name === 'Normal Magic' || attackCard.name === 'Heavy Magic')) return true;
+      if (jobName === 'Mage' && (
+        attackCard.name === 'Normal Magic' || 
+        attackCard.name === 'Heavy Magic' ||
+        attackCard.name === 'Fire Magic' ||
+        attackCard.name === 'Ice Magic' ||
+        attackCard.name === 'Wind Magic' ||
+        attackCard.name === 'Earth Magic' ||
+        attackCard.name === 'Ivy Magic' ||
+        attackCard.name === 'Lightning Magic'
+      )) return true;
+      if (jobName === 'Support' && (attackCard.name === 'Normal Magic' || attackCard.name === 'Heavy Magic')) return true; // Support can use any attack (mainly for status effects)
       return false;
     };
 
@@ -343,6 +500,24 @@ function App() {
       })
     };
 
+    if (card.statusEffect && defenderDamage >= 0) {
+      // Apply status effect using the updated heroes state
+      const statusEffect = {
+        ...STATUS_EFFECTS[card.statusEffect],
+        type: card.statusEffect,
+        turnsRemaining: STATUS_EFFECTS[card.statusEffect].duration
+      };
+
+      newHeroes[defender] = newHeroes[defender].map(h =>
+        h.id === defenderHero.id ? {
+          ...h,
+          statusEffects: [...h.statusEffects.filter(e => e.type !== card.statusEffect), statusEffect]
+        } : h
+      );
+
+      addLog(`${STATUS_EFFECTS[card.statusEffect].icon} ${defenderHero.name} is ${card.statusEffect}!`);
+    }
+
     setHeroes(newHeroes);
 
     if (defenderDamage > 0) {
@@ -398,37 +573,56 @@ function App() {
   };
 
   const playCard = (card) => {
-    if (gameOver) return;
+  if (gameOver) return;
 
-    if (waitingForDiscard) {
-      discardCard(card);
+  if (waitingForDiscard) {
+    discardCard(card);
+    return;
+  }
+
+  if (waitingForReaction) {
+    const defender = pendingAttack.defender;
+    const actingPlayer = currentTurn === 'player1' ? 'player2' : 'player1';
+    if (actingPlayer !== defender) return;
+    if (card.type !== 'defense') {
+      addLog('⚠️ Only defense cards during reactions!');
       return;
     }
+    resolveAttack(card);
+    return;
+  }
 
-    if (waitingForReaction) {
-      const defender = pendingAttack.defender;
-      const actingPlayer = currentTurn === 'player1' ? 'player2' : 'player1';
-      if (actingPlayer !== defender) return;
-      if (card.type !== 'defense') {
-        addLog('⚠️ Only defense cards during reactions!');
-        return;
-      }
-      resolveAttack(card);
-      return;
+  // NEW: Add support card handling
+  if (card.type === 'support') {
+    const activeHero = getActiveHero();
+    
+    if (card.effect === 'heal') {
+      healHero(activeHero.id, currentTurn, card.heal);
+    } else if (card.effect === 'cleanse') {
+      cleanseHero(activeHero.id, currentTurn);
     }
-
-    if (card.type === 'buff') {
-      if (activeBuff) {
-        addLog('⚠️ Buff already active!');
-        return;
-      }
-      playBuff(card);
-    } else if (card.type === 'attack') {
-      playAttack(card);
+    
+    // Remove card from hand
+    if (currentTurn === 'player1') {
+      setPlayer1Hand(prev => prev.filter(c => c.id !== card.id));
     } else {
-      addLog('⚠️ Defense cards only as reactions!');
+      setPlayer2Hand(prev => prev.filter(c => c.id !== card.id));
     }
-  };
+    return;
+  }
+
+  if (card.type === 'buff') {
+    if (activeBuff) {
+      addLog('⚠️ Buff already active!');
+      return;
+    }
+    playBuff(card);
+  } else if (card.type === 'attack') {
+    playAttack(card);
+  } else {
+    addLog('⚠️ Defense cards only as reactions!');
+  }
+};
 
   const selectTarget = (heroId) => {
     if (!selectingTarget || !pendingAttackCard) return;
@@ -447,26 +641,32 @@ function App() {
   };
 
   const confirmEndTurn = () => {
-    const nextPlayer = currentTurn === 'player1' ? 'player2' : 'player1';
-    setCurrentTurn(nextPlayer);
-    setActiveHeroIndex(0);
-    setDrawUsedThisTurn(false);
-    setAttacksUsedThisTurn(0);
-    setActiveBuff(null);
-    setRemainingAttacks(0);
-    setWaitingForNextAttack(false);
-    setTurnCount(prev => prev + 1);
-    setHeroAttackCounts({});
-    setIsFirstAttackOfHero(false);
+  // Process status effects before turn ends
+  const updatedHeroes = processStatusEffects(currentTurn);
+  
+  // Check if anyone died from status effects
+  if (checkVictory(updatedHeroes)) return;
 
-    if (nextPlayer === 'player1') {
-      setPlayer1Hand(drawCardsToFive(player1Hand, 'Player 1'));
-    } else {
-      setPlayer2Hand(drawCardsToFive(player2Hand, 'Player 2'));
-    }
+  const nextPlayer = currentTurn === 'player1' ? 'player2' : 'player1';
+  setCurrentTurn(nextPlayer);
+  setActiveHeroIndex(0);
+  setDrawUsedThisTurn(false);
+  setAttacksUsedThisTurn(0);
+  setActiveBuff(null);
+  setRemainingAttacks(0);
+  setWaitingForNextAttack(false);
+  setTurnCount(prev => prev + 1);
+  setHeroAttackCounts({});
+  setIsFirstAttackOfHero(false);
 
-    addLog(`--- ${nextPlayer === 'player1' ? 'Player 1' : 'Player 2'}'s turn ---`);
-  };
+  if (nextPlayer === 'player1') {
+    setPlayer1Hand(drawCardsToFive(player1Hand, 'Player 1'));
+  } else {
+    setPlayer2Hand(drawCardsToFive(player2Hand, 'Player 2'));
+  }
+
+  addLog(`--- ${nextPlayer === 'player1' ? 'Player 1' : 'Player 2'}'s turn ---`);
+};
 
   const resetGame = () => {
     setHeroes(createInitialHeroes());
@@ -497,12 +697,19 @@ function App() {
   const getCurrentPlayerHand = () => currentTurn === 'player1' ? player1Hand : player2Hand;
 
   const canHeroUseCard = (hero, card) => {
-    if (card.type !== 'attack') return true; // Non-attack cards can always be used
-    if(hero.hp <= 0) return false; // Defeated heroes cannot use attack cards
+    // Support cards only usable by Support heroes
+    if (card.type === 'support') {
+      return hero.job.name === 'Support';
+    }
+    if (card.type !== 'attack') return true;
+    if (hero.hp <= 0) return false;
+    if (!canHeroAct(hero)) return false;
+    
     const jobName = hero.job.name;
     if (jobName === 'Melee' && (card.name === 'Normal Attack' || card.name === 'Heavy Attack')) return true;
     if (jobName === 'Ranged' && (card.name === 'Normal Shot' || card.name === 'Charge Shot')) return true;
-    if (jobName === 'Mage' && (card.name === 'Normal Magic' || card.name === 'Heavy Magic')) return true;
+    if (jobName === 'Mage' && (card.name === 'Normal Magic' || card.name === 'Heavy Magic' || card.element)) return true;
+    if (jobName === 'Support' && (card.name === 'Normal Magic' || card.name === 'Heavy Magic' || card.element)) return true;
     return false;
   };
 
@@ -540,8 +747,14 @@ function App() {
         color = 'bg-indigo-900 border-indigo-600';
         icon = '💫';
       }
-      return { color, icon, label: `+${card.damageModifier || 0}` };
-    } else {
+      const dmg = card.damageModifier || 0;
+      return { color, icon, label: `${dmg >= 0 ? '+' : ''}${dmg}` };
+    } else if (card.type === 'support') {
+        let color = 'bg-emerald-900 border-emerald-600';
+        let icon = card.effect === 'heal' ? '💚' : '✨';
+        let label = card.effect === 'heal' ? `+${card.heal}` : 'CURE';
+        return { color, icon, label };
+  } else {
       let color = 'bg-blue-900 border-blue-600';
       let icon = '🛡️';
       if (card.defenseType === 'evade') {
@@ -616,6 +829,15 @@ function App() {
                     <div className="bg-green-500 h-3 rounded-full transition-all"
                       style={{ width: `${(hero.hp / hero.maxHp) * 100}%` }} />
                   </div>
+                  {hero.statusEffects.length > 0 && (
+                  <div className="mt-2 flex gap-1 flex-wrap">
+                    {hero.statusEffects.map((effect, idx) => (
+                      <span key={idx} className="text-xs bg-gray-700 px-2 py-1 rounded" title={effect.name}>
+                        {effect.icon} {effect.turnsRemaining}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 </div>
               </div>
             ))}
@@ -660,6 +882,15 @@ function App() {
                     <div className="bg-green-500 h-3 rounded-full transition-all"
                       style={{ width: `${(hero.hp / hero.maxHp) * 100}%` }} />
                   </div>
+                  {hero.statusEffects.length > 0 && (
+                  <div className="mt-2 flex gap-1 flex-wrap">
+                    {hero.statusEffects.map((effect, idx) => (
+                      <span key={idx} className="text-xs bg-gray-700 px-2 py-1 rounded" title={effect.name}>
+                        {effect.icon} {effect.turnsRemaining}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 </div>
               </div>
             ))}
