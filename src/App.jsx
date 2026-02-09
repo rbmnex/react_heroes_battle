@@ -3,10 +3,10 @@ import { useState } from 'react';
 // Status Effects
 const STATUS_EFFECTS = {
   BURN: { name: 'Burn', icon: '🔥', damagePerTurn: 2, duration: 3 },
-  FREEZE: { name: 'Freeze', icon: '❄️', skipTurn: true, duration: 1 },
+  FREEZE: { name: 'Freeze', icon: '❄️', skipTurn: true, duration: 2 },
   BLEED: { name: 'Bleed', icon: '🩸', damageOnAction: 2, duration: 2 },
   STUN: { name: 'Stun', icon: '💫', skipTurn: true, duration: 1 },
-  POISON: { name: 'Poison', icon: '☠️', damagePerTurn: 1, duration: 4 },
+  POISON: { name: 'Poison', icon: '☠️', damagePerTurn: 2, duration: 4 },
   PARALYZE: { name: 'Paralyze', icon: '⚡', preventSkills: true, duration: 2 }
 };
 
@@ -26,15 +26,16 @@ const CARD_TYPES = {
   EVADE: { name: 'Evade', defense: 999, type: 'defense', defenseType: 'evade' },
   COUNTER: { name: 'Counter', defense: 0, type: 'defense', defenseType: 'counter', counterType: 'physical' },
   DEFLECT: { name: 'Deflect', defense: 0, type: 'defense', defenseType: 'deflect', counterType: 'magic' },
-  // Add these new cards:
-  FIRE_MAGIC: { name: 'Fire Magic', damage: 0, type: 'attack', attackType: 'magic', element: 'fire', statusEffect: 'BURN' },
-  ICE_MAGIC: { name: 'Ice Magic', damage: 0, type: 'attack', attackType: 'magic', element: 'ice', statusEffect: 'FREEZE' },
-  WIND_MAGIC: { name: 'Wind Magic', damage: 0, type: 'attack', attackType: 'magic', element: 'wind', statusEffect: 'BLEED' },
-  EARTH_MAGIC: { name: 'Earth Magic', damage: 0, type: 'attack', attackType: 'magic', element: 'earth', statusEffect: 'STUN' },
-  IVY_MAGIC: { name: 'Ivy Magic', damage: 0, type: 'attack', attackType: 'magic', element: 'ivy', statusEffect: 'POISON' },
-  LIGHTNING_MAGIC: { name: 'Lightning Magic', damage: 0, type: 'attack', attackType: 'magic', element: 'lightning', statusEffect: 'PARALYZE' },
+  // Elemental magic buffs - combo with magic attacks:
+  FIRE_MAGIC: { name: 'Fire Magic', type: 'buff', buffType: 'elementalMagic', element: 'fire', statusEffect: 'BURN', damageModifier: 1, extraAttacks: 0 },
+  ICE_MAGIC: { name: 'Ice Magic', type: 'buff', buffType: 'elementalMagic', element: 'ice', statusEffect: 'FREEZE', damageModifier: 1, extraAttacks: 0 },
+  WIND_MAGIC: { name: 'Wind Magic', type: 'buff', buffType: 'elementalMagic', element: 'wind', statusEffect: 'BLEED', damageModifier: 1, extraAttacks: 0 },
+  EARTH_MAGIC: { name: 'Earth Magic', type: 'buff', buffType: 'elementalMagic', element: 'earth', statusEffect: 'STUN', damageModifier: 1, extraAttacks: 0 },
+  IVY_MAGIC: { name: 'Ivy Magic', type: 'buff', buffType: 'elementalMagic', element: 'ivy', statusEffect: 'POISON', damageModifier: 1, extraAttacks: 0 },
+  LIGHTNING_MAGIC: { name: 'Lightning Magic', type: 'buff', buffType: 'elementalMagic', element: 'lightning', statusEffect: 'PARALYZE', damageModifier: 1, extraAttacks: 0 },
+  // support cards
   CURE: { name: 'Cure', type: 'support', effect: 'cleanse' },
-  HEAL: { name: 'Heal', heal: 8, type: 'support', effect: 'heal' },
+  HEAL: { name: 'Heal', heal :8, type:'support' , effect:'heal'}
 };
 
 // Job Classes
@@ -80,58 +81,82 @@ function App() {
   const [attacksUsedThisTurn, setAttacksUsedThisTurn] = useState(0);
   const [selectingTarget, setSelectingTarget] = useState(false);
   const [pendingAttackCard, setPendingAttackCard] = useState(null);
+  const [pendingSupportCard, setPendingSupportCard] = useState(null);
+  const [selectingSupportTarget, setSelectingSupportTarget] = useState(false);
   const [turnCount, setTurnCount] = useState(0);
   const [heroAttackCounts, setHeroAttackCounts] = useState({});
+  const [heroSupportCounts, setHeroSupportCounts] = useState({});
   const [isFirstAttackOfHero, setIsFirstAttackOfHero] = useState(false);
   const [statusEffectLog, setStatusEffectLog] = useState([]);
 
-  // Modified: Only Mage heroes can draw elemental magic cards
-  const generateCard = (forHero = null) => {
-    let types = [
-      CARD_TYPES.NORMAL_ATTACK, CARD_TYPES.NORMAL_ATTACK,
-      CARD_TYPES.HEAVY_ATTACK, CARD_TYPES.HEAVY_ATTACK,
-      CARD_TYPES.NORMAL_MAGIC, CARD_TYPES.NORMAL_MAGIC,
-      CARD_TYPES.HEAVY_MAGIC, CARD_TYPES.HEAVY_MAGIC,
-      CARD_TYPES.NORMAL_SHOT,  CARD_TYPES.NORMAL_SHOT,
-      CARD_TYPES.CHARGE_SHOT, CARD_TYPES.CHARGE_SHOT, 
-      CARD_TYPES.FOCUS, CARD_TYPES.CHARGE, 
-      CARD_TYPES.READY, CARD_TYPES.FEINT,
+  // Generate card pool based on active hero job type
+  const generateCard = (forHeroes = null) => {
+    // Default pool - universal cards all heroes can draw
+    const universalCards = [
+      CARD_TYPES.FOCUS, CARD_TYPES.FOCUS,
+      CARD_TYPES.CHARGE, CARD_TYPES.READY, CARD_TYPES.FEINT,
       CARD_TYPES.BLOCK, CARD_TYPES.EVADE,
-      CARD_TYPES.COUNTER, CARD_TYPES.DEFLECT,
     ];
-    // If Mage, add elemental magic
-    if (forHero && forHero.job && forHero.job.name === 'Mage') {
-      types = [
-        ...types,
-        CARD_TYPES.FIRE_MAGIC, CARD_TYPES.ICE_MAGIC,
-        CARD_TYPES.WIND_MAGIC, CARD_TYPES.EARTH_MAGIC,
-        CARD_TYPES.IVY_MAGIC, CARD_TYPES.LIGHTNING_MAGIC,
-      ];
+
+    let types = [...universalCards];
+
+    if (!forHeroes || forHeroes.length === 0) {
+      return { ...types[Math.floor(Math.random() * types.length)], id: Date.now() + Math.random() };
     }
 
-    if (forHero && forHero.job && forHero.job.name === 'Support') {
-      types = [
-        ...types,
-        CARD_TYPES.CURE, CARD_TYPES.HEAL,
-      ];
-    }
+    // Combine card pools from all active heroes
+    forHeroes.forEach(hero => {
+      let jobName = hero.job.name;
+
+      if (jobName === 'Melee') {
+        types.push(
+          CARD_TYPES.NORMAL_ATTACK, CARD_TYPES.NORMAL_ATTACK,
+          CARD_TYPES.HEAVY_ATTACK, CARD_TYPES.HEAVY_ATTACK, CARD_TYPES.COUNTER
+        );
+      } else if (jobName === 'Ranged') {
+        types.push(
+          CARD_TYPES.NORMAL_SHOT, CARD_TYPES.NORMAL_SHOT,
+          CARD_TYPES.CHARGE_SHOT, CARD_TYPES.CHARGE_SHOT, CARD_TYPES.COUNTER
+        );
+      } else if (jobName === 'Mage') {
+        types.push(
+          CARD_TYPES.NORMAL_MAGIC, CARD_TYPES.NORMAL_MAGIC, 
+          CARD_TYPES.HEAVY_MAGIC, CARD_TYPES.HEAVY_MAGIC,
+          CARD_TYPES.FIRE_MAGIC, CARD_TYPES.ICE_MAGIC,
+          CARD_TYPES.WIND_MAGIC, CARD_TYPES.EARTH_MAGIC,
+          CARD_TYPES.IVY_MAGIC, CARD_TYPES.LIGHTNING_MAGIC,
+          CARD_TYPES.DEFLECT
+        );
+      } else if (jobName === 'Support') {
+        types.push(
+          CARD_TYPES.NORMAL_MAGIC,
+          CARD_TYPES.HEAVY_MAGIC,
+          CARD_TYPES.CURE, CARD_TYPES.HEAL, CARD_TYPES.HEAL, CARD_TYPES.HEAL,
+          CARD_TYPES.DEFLECT
+        );
+      }
+    });
+
     return { ...types[Math.floor(Math.random() * types.length)], id: Date.now() + Math.random() };
   };
 
-  // Pass hero to generateCard so Mage gets elemental magic
-  const drawCardsToFive = (currentHand, playerName, heroOverride = null) => {
+  // Pass hero to generateCard - find first non-defeated hero for card drawing
+  const drawCardsToFive = (currentHand, playerName, heroesData = null) => {
     const cardsToDraw = 5 - currentHand.length;
     if (cardsToDraw <= 0) return currentHand;
-    let hero = heroOverride;
-    // If not provided, try to get from state
-    if (!hero && heroes[playerName] && heroes[playerName][activeHeroIndex]) {
-      hero = heroes[playerName][activeHeroIndex];
-    }
-    // If still not found (e.g. at game start), default to Mage
-    if (!hero) {
-      hero = { job: { name: 'Mage' } };
-    }
-    const newCards = Array.from({ length: cardsToDraw }, () => generateCard(hero));
+    
+    // Use provided heroesData or fall back to current heroes state
+    const team = heroesData ? heroesData[playerName] : heroes[playerName];
+    
+    // Collect all active heroes from the team
+    let activeHeroes = [];
+    team.forEach(hero => {  
+      if (!hero.defeated) {
+        activeHeroes.push(hero);
+      }
+    });
+    
+    const newCards = Array.from({ length: cardsToDraw }, () => generateCard(activeHeroes));
     addLog(`${playerName} draws ${cardsToDraw} card${cardsToDraw > 1 ? 's' : ''}.`);
     return [...currentHand, ...newCards];
   };
@@ -139,7 +164,14 @@ function App() {
   const drawOneAndDiscard = () => {
     if (drawUsedThisTurn) return;
     const hero = heroes[currentTurn][activeHeroIndex];
-    const newCard = generateCard(hero);
+    const teamHeroes = heroes[currentTurn];
+    let activeHeroes = [];
+    teamHeroes.forEach(h => {  
+      if (!h.defeated) {
+        activeHeroes.push(h);
+      }
+    });
+    const newCard = generateCard(activeHeroes);
     setDrawnCard(newCard);
     setDrawUsedThisTurn(true);
     if (currentTurn === 'player1') {
@@ -164,12 +196,10 @@ function App() {
   };
 
   const startGame = () => {
-    // Use first hero for each player for initial hand
+    // Use first non-defeated hero for each player for initial hand
     const initialHeroes = createInitialHeroes();
-    const p1Hero = initialHeroes.player1[0];
-    const p2Hero = initialHeroes.player2[0];
-    const p1Cards = drawCardsToFive([], 'player1', p1Hero);
-    const p2Cards = drawCardsToFive([], 'player2', p2Hero);
+    const p1Cards = drawCardsToFive([], 'player1', initialHeroes);
+    const p2Cards = drawCardsToFive([], 'player2', initialHeroes);
     setHeroes(initialHeroes);
     setPlayer1Hand(p1Cards);
     setPlayer2Hand(p2Cards);
@@ -301,8 +331,20 @@ const healHero = (heroId, player, amount) => {
   const playBuff = (card) => {
     const currentHand = currentTurn === 'player1' ? player1Hand : player2Hand;
     const attackCards = currentHand.filter(c => c.type === 'attack');
+    const magicCards = attackCards.filter(c => c.attackType === 'magic');
+    const hero = getActiveHero();
 
-    if (card.buffType === 'ready' && attackCards.length < 2) {
+    // Elemental magic buffs require Mage hero
+    if (card.buffType === 'elementalMagic') {
+      if (hero.job.name !== 'Mage') {
+        addLog(`⚠️ Only Mages can use ${card.name}!`);
+        return;
+      }
+      if (magicCards.length < 1) {
+        addLog(`⚠️ ${card.name} requires at least 1 magic attack card! You have ${magicCards.length}.`);
+        return;
+      }
+    } else if (card.buffType === 'ready' && attackCards.length < 2) {
       addLog(`⚠️ Ready requires at least 2 attack cards! You have ${attackCards.length}.`);
       return;
     } else if (attackCards.length < 1) {
@@ -319,9 +361,12 @@ const healHero = (heroId, player, amount) => {
     setActiveBuff(card);
     const totalAttacks = 1 + card.extraAttacks;
     setRemainingAttacks(totalAttacks);
-
-    const hero = getActiveHero();
-    addLog(`🔥 ${hero.name} (${hero.job.name}) uses ${card.name}! ${totalAttacks} attacks!`);
+    
+    if (card.buffType === 'elementalMagic') {
+      addLog(`✨ ${hero.name} (${hero.job.name}) channels ${card.name}! Magic attacks apply ${card.statusEffect}!`);
+    } else {
+      addLog(`🔥 ${hero.name} (${hero.job.name}) uses ${card.name}! ${totalAttacks} attacks!`);
+    }
 
     if (card.buffType === 'charge') {
       addLog(`⚠️ Charge: 0 damage = stunned!`);
@@ -341,15 +386,9 @@ const healHero = (heroId, player, amount) => {
       if (jobName === 'Ranged' && (attackCard.name === 'Normal Shot' || attackCard.name === 'Charge Shot')) return true;
       if (jobName === 'Mage' && (
         attackCard.name === 'Normal Magic' || 
-        attackCard.name === 'Heavy Magic' ||
-        attackCard.name === 'Fire Magic' ||
-        attackCard.name === 'Ice Magic' ||
-        attackCard.name === 'Wind Magic' ||
-        attackCard.name === 'Earth Magic' ||
-        attackCard.name === 'Ivy Magic' ||
-        attackCard.name === 'Lightning Magic'
+        attackCard.name === 'Heavy Magic'
       )) return true;
-      if (jobName === 'Support' && (attackCard.name === 'Normal Magic' || attackCard.name === 'Heavy Magic')) return true; // Support can use any attack (mainly for status effects)
+      if (jobName === 'Support' && (attackCard.name === 'Normal Magic' || attackCard.name === 'Heavy Magic')) return true;
       return false;
     };
 
@@ -358,26 +397,35 @@ const healHero = (heroId, player, amount) => {
       return;
     }
 
-    // If no target selected yet, enter target selection mode
-    if (!targetHeroId) {
-      const heroAttackCount = heroAttackCounts[attacker.id] || 0;
-      const isFirst = heroAttackCount === 0;
-      
-      setPendingAttackCard(card);
-      setSelectingTarget(true);
-      setIsFirstAttackOfHero(isFirst);
-      addLog(`Select target for ${card.name}...`);
+    // If elemental magic buff is active, check that attack is magic type
+    if (activeBuff && activeBuff.buffType === 'elementalMagic' && card.attackType !== 'magic') {
+      addLog(`⚠️ ${activeBuff.name} only combos with magic attacks!`);
       return;
     }
 
     const maxAttacks = activeBuff ? (1 + activeBuff.extraAttacks) : 1;
     const heroAttackCount = heroAttackCounts[attacker.id] || 0;
+
+    // If no target selected yet, enter target selection mode
+    if (!targetHeroId) {
+      // Only allow target selection if hero hasn't exceeded max attacks
+      if (heroAttackCount >= maxAttacks) {
+        addLog(`⚠️ ${attacker.name} has already attacked ${maxAttacks} time${maxAttacks > 1 ? 's' : ''} this turn!`);
+        return;
+      }
+      
+      const isFirst = heroAttackCount === 0;
+      setPendingAttackCard(card);
+      setSelectingTarget(true);
+      setIsFirstAttackOfHero(true); // Allow target selection since we passed the check
+      addLog(`Select target for ${card.name}...`);
+      return;
+    }
+
     if (heroAttackCount >= maxAttacks) {
       addLog(`⚠️ ${attacker.name} has already attacked ${maxAttacks} time${maxAttacks > 1 ? 's' : ''} this turn!`);
       setSelectingTarget(false);
       return;
-    } else {
-      setIsFirstAttackOfHero(true);
     }
 
     const opponent = currentTurn === 'player1' ? 'player2' : 'player1';
@@ -500,22 +548,51 @@ const healHero = (heroId, player, amount) => {
       })
     };
 
-    if (card.statusEffect && defenderDamage >= 0) {
-      // Apply status effect using the updated heroes state
-      const statusEffect = {
-        ...STATUS_EFFECTS[card.statusEffect],
-        type: card.statusEffect,
-        turnsRemaining: STATUS_EFFECTS[card.statusEffect].duration
-      };
+    // Apply status effect from card or from active elemental magic buff
+    let statusToApply = card.statusEffect;
+    if (!statusToApply && activeBuff && activeBuff.buffType === 'elementalMagic' && card.attackType === 'magic') {
+      statusToApply = activeBuff.statusEffect;
+    }
+    
+    if (statusToApply) {
+      // Determine who gets the status effect based on defense type
+      let statusTargetHero = defenderHero;
+      let statusTargetPlayer = defender;
+      let isReflected = false;
 
-      newHeroes[defender] = newHeroes[defender].map(h =>
-        h.id === defenderHero.id ? {
-          ...h,
-          statusEffects: [...h.statusEffects.filter(e => e.type !== card.statusEffect), statusEffect]
-        } : h
-      );
+      if (defenseCard && defenseCard.defenseType === 'deflect') {
+        // DEFLECT bounces status effect back to attacker
+        statusTargetHero = attackerHero;
+        statusTargetPlayer = attacker;
+        isReflected = true;
+      } else if (defenseCard && defenseCard.defenseType === 'block') {
+        // BLOCK applies status effect to defender regardless of damage
+        // Keep defaults (statusTargetHero = defenderHero, statusTargetPlayer = defender)
+      } else if (defenderDamage <= 0) {
+        // Don't apply status if no damage (except for block)
+        statusToApply = null;
+      }
 
-      addLog(`${STATUS_EFFECTS[card.statusEffect].icon} ${defenderHero.name} is ${card.statusEffect}!`);
+      if (statusToApply) {
+        const statusEffect = {
+          ...STATUS_EFFECTS[statusToApply],
+          type: statusToApply,
+          turnsRemaining: STATUS_EFFECTS[statusToApply].duration
+        };
+
+        newHeroes[statusTargetPlayer] = newHeroes[statusTargetPlayer].map(h =>
+          h.id === statusTargetHero.id ? {
+            ...h,
+            statusEffects: [...h.statusEffects.filter(e => e.type !== statusToApply), statusEffect]
+          } : h
+        );
+
+        if (isReflected) {
+          addLog(`${STATUS_EFFECTS[statusToApply].icon} ${statusTargetHero.name} is ${statusToApply}! [REFLECTED]`);
+        } else {
+          addLog(`${STATUS_EFFECTS[statusToApply].icon} ${statusTargetHero.name} is ${statusToApply}!`);
+        }
+      }
     }
 
     setHeroes(newHeroes);
@@ -564,9 +641,9 @@ const healHero = (heroId, player, amount) => {
     setActiveHeroIndex(0);
 
     if (nextPlayer === 'player1') {
-      setPlayer1Hand(drawCardsToFive(player1Hand, 'Player 1'));
+      setPlayer1Hand(drawCardsToFive(player1Hand, 'player1', newHeroes));
     } else {
-      setPlayer2Hand(drawCardsToFive(player2Hand, 'Player 2'));
+      setPlayer2Hand(drawCardsToFive(player2Hand, 'player2', newHeroes));
     }
 
     addLog(`--- ${nextPlayer === 'player1' ? 'Player 1' : 'Player 2'}'s turn ---`);
@@ -592,22 +669,21 @@ const healHero = (heroId, player, amount) => {
     return;
   }
 
-  // NEW: Add support card handling
+  // Support cards target a teammate
   if (card.type === 'support') {
     const activeHero = getActiveHero();
+    const heroSupportUsed = heroSupportCounts[activeHero.id] || 0;
+    const maxSupportUses = activeBuff && activeBuff.buffType === 'ready' ? 2 : 1;
     
-    if (card.effect === 'heal') {
-      healHero(activeHero.id, currentTurn, card.heal);
-    } else if (card.effect === 'cleanse') {
-      cleanseHero(activeHero.id, currentTurn);
+    if (heroSupportUsed >= maxSupportUses) {
+      addLog(`⚠️ ${activeHero.name} has already used support card${maxSupportUses > 1 ? 's' : ''}!`);
+      return;
     }
     
-    // Remove card from hand
-    if (currentTurn === 'player1') {
-      setPlayer1Hand(prev => prev.filter(c => c.id !== card.id));
-    } else {
-      setPlayer2Hand(prev => prev.filter(c => c.id !== card.id));
-    }
+    // Enter target selection mode to choose a teammate
+    setPendingSupportCard(card);
+    setSelectingSupportTarget(true);
+    addLog(`Select a teammate to use ${card.name} on...`);
     return;
   }
 
@@ -625,6 +701,45 @@ const healHero = (heroId, player, amount) => {
 };
 
   const selectTarget = (heroId) => {
+    // Handle support card targeting
+    if (selectingSupportTarget && pendingSupportCard) {
+      const supportCard = pendingSupportCard;
+      const team = heroes[currentTurn];
+      const targetHero = team.find(h => h.id === heroId);
+      const casterHero = getActiveHero();
+      
+      if (!targetHero || targetHero.defeated) {
+        addLog(`⚠️ Invalid target!`);
+        return;
+      }
+      
+      if (supportCard.effect === 'heal') {
+        healHero(targetHero.id, currentTurn, supportCard.heal);
+        addLog(`💚 ${supportCard.name} used on ${targetHero.name}!`);
+      } else if (supportCard.effect === 'cleanse') {
+        cleanseHero(targetHero.id, currentTurn);
+        addLog(`✨ ${supportCard.name} used on ${targetHero.name}!`);
+      }
+      
+      // Remove card from hand
+      if (currentTurn === 'player1') {
+        setPlayer1Hand(prev => prev.filter(c => c.id !== supportCard.id));
+      } else {
+        setPlayer2Hand(prev => prev.filter(c => c.id !== supportCard.id));
+      }
+      
+      // Increment support card counter
+      setHeroSupportCounts(prev => ({
+        ...prev,
+        [casterHero.id]: (prev[casterHero.id] || 0) + 1
+      }));
+      
+      setSelectingSupportTarget(false);
+      setPendingSupportCard(null);
+      return;
+    }
+    
+    // Handle attack card targeting
     if (!selectingTarget || !pendingAttackCard) return;
     playAttack(pendingAttackCard, heroId);
   };
@@ -634,10 +749,16 @@ const healHero = (heroId, player, amount) => {
   };
 
   const cancelAttack = () => {
-    setSelectingTarget(false);
-    setPendingAttackCard(null);
-    setIsFirstAttackOfHero(false);
-    addLog('Attack cancelled!');
+    if (selectingSupportTarget) {
+      setSelectingSupportTarget(false);
+      setPendingSupportCard(null);
+      addLog('Support card cancelled!');
+    } else {
+      setSelectingTarget(false);
+      setPendingAttackCard(null);
+      setIsFirstAttackOfHero(false);
+      addLog('Attack cancelled!');
+    }
   };
 
   const confirmEndTurn = () => {
@@ -648,8 +769,16 @@ const healHero = (heroId, player, amount) => {
   if (checkVictory(updatedHeroes)) return;
 
   const nextPlayer = currentTurn === 'player1' ? 'player2' : 'player1';
+  
+  // Find first non-defeated hero for the next player
+  const nextTeam = updatedHeroes[nextPlayer];
+  let nextHeroIndex = nextTeam.findIndex(h => !h.defeated);
+  if (nextHeroIndex === -1) {
+    nextHeroIndex = 0; // All defeated (fallback, game should end)
+  }
+  
   setCurrentTurn(nextPlayer);
-  setActiveHeroIndex(0);
+  setActiveHeroIndex(nextHeroIndex);
   setDrawUsedThisTurn(false);
   setAttacksUsedThisTurn(0);
   setActiveBuff(null);
@@ -657,12 +786,13 @@ const healHero = (heroId, player, amount) => {
   setWaitingForNextAttack(false);
   setTurnCount(prev => prev + 1);
   setHeroAttackCounts({});
+  setHeroSupportCounts({});
   setIsFirstAttackOfHero(false);
 
   if (nextPlayer === 'player1') {
-    setPlayer1Hand(drawCardsToFive(player1Hand, 'Player 1'));
+    setPlayer1Hand(drawCardsToFive(player1Hand, 'player1', updatedHeroes));
   } else {
-    setPlayer2Hand(drawCardsToFive(player2Hand, 'Player 2'));
+    setPlayer2Hand(drawCardsToFive(player2Hand, 'player2', updatedHeroes));
   }
 
   addLog(`--- ${nextPlayer === 'player1' ? 'Player 1' : 'Player 2'}'s turn ---`);
@@ -701,6 +831,10 @@ const healHero = (heroId, player, amount) => {
     if (card.type === 'support') {
       return hero.job.name === 'Support';
     }
+    // Elemental magic buffs only usable by Mage heroes
+    if (card.type === 'buff' && card.buffType === 'elementalMagic') {
+      return hero.job.name === 'Mage';
+    }
     if (card.type !== 'attack') return true;
     if (hero.hp <= 0) return false;
     if (!canHeroAct(hero)) return false;
@@ -708,8 +842,8 @@ const healHero = (heroId, player, amount) => {
     const jobName = hero.job.name;
     if (jobName === 'Melee' && (card.name === 'Normal Attack' || card.name === 'Heavy Attack')) return true;
     if (jobName === 'Ranged' && (card.name === 'Normal Shot' || card.name === 'Charge Shot')) return true;
-    if (jobName === 'Mage' && (card.name === 'Normal Magic' || card.name === 'Heavy Magic' || card.element)) return true;
-    if (jobName === 'Support' && (card.name === 'Normal Magic' || card.name === 'Heavy Magic' || card.element)) return true;
+    if (jobName === 'Mage' && (card.name === 'Normal Magic' || card.name === 'Heavy Magic')) return true;
+    if (jobName === 'Support' && (card.name === 'Normal Magic' || card.name === 'Heavy Magic')) return true;
     return false;
   };
 
@@ -746,6 +880,12 @@ const healHero = (heroId, player, amount) => {
       } else if (card.buffType === 'feint') {
         color = 'bg-indigo-900 border-indigo-600';
         icon = '💫';
+      } else if (card.buffType === 'ready') {
+        color = 'bg-lime-900 border-lime-600';
+        icon = '😣';
+      } else if (card.buffType === 'elementalMagic') {
+        color = 'bg-pink-900 border-pink-600';
+        icon = '🌟';
       }
       const dmg = card.damageModifier || 0;
       return { color, icon, label: `${dmg >= 0 ? '+' : ''}${dmg}` };
@@ -799,16 +939,19 @@ const healHero = (heroId, player, amount) => {
               <div
                 key={hero.id}
                 onClick={() => {
-                  if (selectingTarget) {
+                  if (selectingSupportTarget && currentTurn === 'player1') {
                     selectTarget(hero.id);
-                  } else if (currentTurn === 'player1' && !waitingForReaction && !selectingTarget) {
+                  } else if (selectingTarget) {
+                    selectTarget(hero.id);
+                  } else if (gameStarted && currentTurn === 'player1' && !waitingForReaction && !selectingTarget && !selectingSupportTarget) {
                     setActiveHeroIndex(idx);
                     addLog(`${hero.name} selected!`);
                   }
                 }}
                 className={`bg-gray-800 p-4 rounded-lg border-4 transition-all cursor-pointer ${hero.defeated ? 'opacity-40 border-gray-700' :
+                  !gameStarted ? 'border-gray-500' :
                   currentTurn === 'player1' && idx === activeHeroIndex ? 'border-blue-500 shadow-lg' :
-                    selectingTarget ? 'border-green-500 hover:border-green-400' :
+                    (selectingTarget || selectingSupportTarget) && currentTurn === 'player1' ? 'border-green-500 hover:border-green-400' :
                       currentTurn === 'player1' && !waitingForReaction ? 'border-blue-400 hover:border-blue-300' :
                         'border-gray-600'
                   }`}
@@ -852,16 +995,19 @@ const healHero = (heroId, player, amount) => {
               <div
                 key={hero.id}
                 onClick={() => {
-                  if (selectingTarget) {
+                  if (selectingSupportTarget && currentTurn === 'player2') {
                     selectTarget(hero.id);
-                  } else if (currentTurn === 'player2' && !waitingForReaction && !selectingTarget) {
+                  } else if (selectingTarget) {
+                    selectTarget(hero.id);
+                  } else if (gameStarted && currentTurn === 'player2' && !waitingForReaction && !selectingTarget && !selectingSupportTarget) {
                     setActiveHeroIndex(idx);
                     addLog(`${hero.name} selected!`);
                   }
                 }}
                 className={`bg-gray-800 p-4 rounded-lg border-4 transition-all cursor-pointer ${hero.defeated ? 'opacity-40 border-gray-700' :
+                  !gameStarted ? 'border-gray-500' :
                   currentTurn === 'player2' && idx === activeHeroIndex ? 'border-red-500 shadow-lg' :
-                    selectingTarget ? 'border-green-500 hover:border-green-400' :
+                    (selectingTarget || selectingSupportTarget) && currentTurn === 'player2' ? 'border-green-500 hover:border-green-400' :
                       currentTurn === 'player2' && !waitingForReaction ? 'border-red-400 hover:border-red-300' :
                         'border-gray-600'
                   }`}
@@ -897,6 +1043,15 @@ const healHero = (heroId, player, amount) => {
           </div>
         </div>
       </div>
+      {/* Support Card Target Selection Banner */}
+      {selectingSupportTarget && pendingSupportCard && (
+        <div className="max-w-7xl mx-auto mb-4">
+          <div className="bg-emerald-900 p-4 rounded-lg border-2 border-emerald-400 text-center">
+            <p className="text-xl font-bold">💚 Select a teammate to use {pendingSupportCard.name} on...</p>
+          </div>
+        </div>
+      )}
+
       {/* Target Selection Banner */}
       {selectingTarget && !isFirstAttackOfHero && (
         <div className="max-w-7xl mx-auto mb-4" onClick={cancelAttack}>
@@ -981,7 +1136,9 @@ const healHero = (heroId, player, amount) => {
               const isPlayable = waitingForDiscard ? true :
                 waitingForReaction ? card.type === 'defense' :
                   card.type === 'attack' ? canHeroUseCard(activeHero, card) :
-                    (card.type === 'buff' && !activeBuff);
+                    (card.type === 'buff' && !activeBuff ) ? canHeroUseCard(activeHero, card) :
+                      card.type === 'support' ? canHeroUseCard(activeHero, card) :
+                        false;
               const isNewlyDrawn = drawnCard && card.id === drawnCard.id;
               const visual = getCardVisual(card);
 
