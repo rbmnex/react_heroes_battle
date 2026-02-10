@@ -35,7 +35,8 @@ const CARD_TYPES = {
   LIGHTNING_MAGIC: { name: 'Lightning Magic', type: 'buff', buffType: 'elementalMagic', element: 'lightning', statusEffect: 'PARALYZE', damageModifier: 1, extraAttacks: 0 },
   // support cards
   CURE: { name: 'Cure', type: 'support', effect: 'cleanse' },
-  HEAL: { name: 'Heal', heal :8, type:'support' , effect:'heal'}
+  HEAL: { name: 'Heal', heal :8, type:'support' , effect:'heal'},
+  SHIELD: { name: 'Shield', shieldValue: 10, type: 'support', effect: 'shield' },
 };
 
 // Job Classes
@@ -49,14 +50,14 @@ const JOB_CLASSES = {
 // Initial 3v3 hero setup
 const createInitialHeroes = () => ({
   player1: [
-    { id: 1, name: 'Swordman', job: JOB_CLASSES.MELEE, hp: 60, maxHp: 60, defeated: false, statusEffects: [] },
-    { id: 2, name: 'Archer', job: JOB_CLASSES.RANGED, hp: 45, maxHp: 45, defeated: false, statusEffects: [] },
-    { id: 3, name: 'Wizard', job: JOB_CLASSES.MAGE, hp: 40, maxHp: 40, defeated: false, statusEffects: [] }
+    { id: 1, name: 'Swordman', job: JOB_CLASSES.MELEE, hp: 60, maxHp: 60, defeated: false, statusEffects: [], shield: 0 },
+    { id: 2, name: 'Archer', job: JOB_CLASSES.RANGED, hp: 45, maxHp: 45, defeated: false, statusEffects: [], shield: 0 },
+    { id: 3, name: 'Wizard', job: JOB_CLASSES.MAGE, hp: 40, maxHp: 40, defeated: false, statusEffects: [], shield: 0 }
   ],
   player2: [
-    { id: 4, name: 'Warrior', job: JOB_CLASSES.MELEE, hp: 60, maxHp: 60, defeated: false, statusEffects: [] },
-    { id: 5, name: 'Sorceress', job: JOB_CLASSES.MAGE, hp: 40, maxHp: 40, defeated: false, statusEffects: [] },
-    { id: 6, name: 'Cleric', job: JOB_CLASSES.SUPPORT, hp: 40, maxHp: 40, defeated: false, statusEffects: [] }
+    { id: 4, name: 'Warrior', job: JOB_CLASSES.MELEE, hp: 60, maxHp: 60, defeated: false, statusEffects: [], shield: 0 },
+    { id: 5, name: 'Sorceress', job: JOB_CLASSES.MAGE, hp: 40, maxHp: 40, defeated: false, statusEffects: [], shield: 0 },
+    { id: 6, name: 'Cleric', job: JOB_CLASSES.SUPPORT, hp: 40, maxHp: 40, defeated: false, statusEffects: [], shield: 0 }
   ]
 });
 
@@ -131,7 +132,7 @@ function App() {
         types.push(
           CARD_TYPES.NORMAL_MAGIC,
           CARD_TYPES.HEAVY_MAGIC,
-          CARD_TYPES.CURE, CARD_TYPES.HEAL, CARD_TYPES.HEAL, CARD_TYPES.HEAL,
+          CARD_TYPES.CURE, CARD_TYPES.SHIELD, CARD_TYPES.HEAL, CARD_TYPES.HEAL,
           CARD_TYPES.DEFLECT
         );
       }
@@ -302,6 +303,21 @@ const healHero = (heroId, player, amount) => {
   }));
   const hero = heroes[player].find(h => h.id === heroId);
   addLog(`💚 ${hero.name} healed ${amount} HP!`);
+};
+
+// Apply shield to hero
+const applyShield = (heroId, player, shieldAmount) => {
+  setHeroes(prev => ({
+    ...prev,
+    [player]: prev[player].map(h =>
+      h.id === heroId ? { 
+        ...h, 
+        shield: h.shield + shieldAmount 
+      } : h
+    )
+  }));
+  const hero = heroes[player].find(h => h.id === heroId);
+  addLog(`🛡️ ${hero.name} gains ${shieldAmount} shield! (Total: ${hero.shield + shieldAmount})`);
 };
 
   const checkVictory = (newHeroes) => {
@@ -606,8 +622,25 @@ const healHero = (heroId, player, amount) => {
       addLog(`💢 ${attackerHero.name}: ${attackerDamage} reflected (HP: ${updatedAttacker.hp}/${updatedAttacker.maxHp})${updatedAttacker.defeated ? ' ☠️ DEFEATED!' : ''}`);
     }
 
-    if (activeBuff && activeBuff.buffType === 'charge' && defenderDamage === 0) {
+    if (activeBuff && activeBuff.buffType === 'charge') {
       addLog(`⚠️ CHARGE FAIL! Stunned next turn!`);
+      
+      // Apply stun to attacker when charge fails
+      const stunEffect = {
+        ...STATUS_EFFECTS.STUN,
+        type: 'STUN',
+        turnsRemaining: STATUS_EFFECTS.STUN.duration
+      };
+
+      newHeroes[attacker] = newHeroes[attacker].map(h =>
+        h.id === attackerHero.id ? {
+          ...h,
+          statusEffects: [...h.statusEffects.filter(e => e.type !== 'STUN'), stunEffect]
+        } : h
+      );
+      
+      setHeroes(newHeroes);
+      addLog(`💫 ${attackerHero.name} is STUN!`);
     }
 
     setWaitingForReaction(false);
@@ -676,7 +709,7 @@ const healHero = (heroId, player, amount) => {
     const maxSupportUses = activeBuff && activeBuff.buffType === 'ready' ? 2 : 1;
     
     if (heroSupportUsed >= maxSupportUses) {
-      addLog(`⚠️ ${activeHero.name} has already used support card${maxSupportUses > 1 ? 's' : ''}!`);
+      addLog(`⚠️ ${activeHero.name} has already used support card ${maxSupportUses > 1 ? 's' : ''}!`);
       return;
     }
     
@@ -719,6 +752,9 @@ const healHero = (heroId, player, amount) => {
       } else if (supportCard.effect === 'cleanse') {
         cleanseHero(targetHero.id, currentTurn);
         addLog(`✨ ${supportCard.name} used on ${targetHero.name}!`);
+      } else if (supportCard.effect === 'shield') {
+        shieldHero(targetHero.id, currentTurn, supportCard.shieldValue);
+        addLog(`🛡️ ${supportCard.name} used on ${targetHero.name}!`);
       }
       
       // Remove card from hand
@@ -890,9 +926,18 @@ const healHero = (heroId, player, amount) => {
       const dmg = card.damageModifier || 0;
       return { color, icon, label: `${dmg >= 0 ? '+' : ''}${dmg}` };
     } else if (card.type === 'support') {
-        let color = 'bg-emerald-900 border-emerald-600';
-        let icon = card.effect === 'heal' ? '💚' : '✨';
-        let label = card.effect === 'heal' ? `+${card.heal}` : 'CURE';
+         let color = 'bg-emerald-900 border-emerald-600';
+          let icon = '✨';
+          let label = 'CURE';
+          
+          if (card.effect === 'heal') {
+            icon = '💚';
+            label = `+${card.heal}`;
+          } else if (card.effect === 'shield') {
+            color = 'bg-blue-900 border-blue-600';
+            icon = '🛡️';
+            label = `+${card.shieldValue}`;
+          }
         return { color, icon, label };
   } else {
       let color = 'bg-blue-900 border-blue-600';
@@ -972,6 +1017,19 @@ const healHero = (heroId, player, amount) => {
                     <div className="bg-green-500 h-3 rounded-full transition-all"
                       style={{ width: `${(hero.hp / hero.maxHp) * 100}%` }} />
                   </div>
+                  {/* ADD THIS SHIELD DISPLAY */}
+                  {hero.shield > 0 && (
+                    <div className="mt-1">
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-blue-300">🛡️ Shield</span>
+                        <span className="font-bold text-blue-300">{hero.shield}</span>
+                      </div>
+                      <div className="w-full bg-gray-700 rounded-full h-2">
+                        <div className="bg-blue-400 h-2 rounded-full transition-all"
+                          style={{ width: `${Math.min(100, (hero.shield / hero.maxHp) * 100)}%` }} />
+                      </div>
+                    </div>
+                  )}
                   {hero.statusEffects.length > 0 && (
                   <div className="mt-2 flex gap-1 flex-wrap">
                     {hero.statusEffects.map((effect, idx) => (
