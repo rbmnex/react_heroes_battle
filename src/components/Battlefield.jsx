@@ -20,7 +20,7 @@ const Battlefield = ({ heroes, currentTurn, activeHeroIndex, selectingTarget, se
                   addLog(`${hero.name} selected!`);
                 }
               }}
-              className={`bg-gray-800 p-4 rounded-lg border-4 transition-all cursor-pointer ${hero.defeated ? 'opacity-40 border-gray-700' :
+              className={`bg-gray-800 p-4 rounded-lg border-4 transition-all cursor-pointer flex flex-col items-center gap-3 ${hero.defeated ? 'opacity-40 border-gray-700' :
                 !gameStarted ? 'border-gray-500' :
                 currentTurn === 'player1' && idx === activeHeroIndex ? 'border-blue-500 shadow-lg' :
                   (selectingTarget || selectingSupportTarget) && currentTurn === 'player1' ? 'border-green-500 hover:border-green-400' :
@@ -28,14 +28,19 @@ const Battlefield = ({ heroes, currentTurn, activeHeroIndex, selectingTarget, se
                       'border-gray-600'
                 }`}
             >
-              <div className="flex justify-between items-center mb-2">
-                <div>
-                  <h3 className="text-lg font-bold">{hero.name}</h3>
-                  <p className="text-sm text-gray-400">{hero.job.icon} {hero.job.name}</p>
-                </div>
-                {hero.defeated && <span className="text-2xl">☠️</span>}
+              <div className="text-center">
+                <h3 className="text-lg font-bold">{hero.name}</h3>
+                <p className="text-sm text-gray-400">{hero.job.icon} {hero.job.name}</p>
+                {hero.defeated && <span className="text-2xl ml-2">☠️</span>}
               </div>
-              <div className="mb-2">
+              
+              <img 
+                src={hero.image} 
+                alt={hero.name}
+                className="w-32 h-32 object-cover rounded border-2 border-gray-600"
+              />
+              
+              <div className="w-full">
                 <div className="flex justify-between text-sm mb-1">
                   <span>HP</span>
                   <span className="font-bold">{hero.hp}/{hero.maxHp}</span>
@@ -57,7 +62,7 @@ const Battlefield = ({ heroes, currentTurn, activeHeroIndex, selectingTarget, se
                   </div>
                 )}
                 {hero.statusEffects.length > 0 && (
-                <div className="mt-2 flex gap-1 flex-wrap">
+                <div className="mt-2 flex gap-1 flex-wrap justify-center">
                   {hero.statusEffects.map((effect, idx) => (
                     <span key={idx} className="text-xs bg-gray-700 px-2 py-1 rounded" title={effect.name}>
                       {effect.icon} {effect.turnsRemaining}
@@ -88,7 +93,7 @@ const Battlefield = ({ heroes, currentTurn, activeHeroIndex, selectingTarget, se
                   addLog(`${hero.name} selected!`);
                 }
               }}
-              className={`bg-gray-800 p-4 rounded-lg border-4 transition-all cursor-pointer ${hero.defeated ? 'opacity-40 border-gray-700' :
+              className={`bg-gray-800 p-4 rounded-lg border-4 transition-all cursor-pointer flex flex-col items-center gap-3 ${hero.defeated ? 'opacity-40 border-gray-700' :
                 !gameStarted ? 'border-gray-500' :
                 currentTurn === 'player2' && idx === activeHeroIndex ? 'border-red-500 shadow-lg' :
                   (selectingTarget || selectingSupportTarget) && currentTurn === 'player2' ? 'border-green-500 hover:border-green-400' :
@@ -96,14 +101,19 @@ const Battlefield = ({ heroes, currentTurn, activeHeroIndex, selectingTarget, se
                       'border-gray-600'
                 }`}
             >
-              <div className="flex justify-between items-center mb-2">
-                <div>
-                  <h3 className="text-lg font-bold">{hero.name}</h3>
-                  <p className="text-sm text-gray-400">{hero.job.icon} {hero.job.name}</p>
-                </div>
-                {hero.defeated && <span className="text-2xl">☠️</span>}
+              <div className="text-center">
+                <h3 className="text-lg font-bold">{hero.name}</h3>
+                <p className="text-sm text-gray-400">{hero.job.icon} {hero.job.name}</p>
+                {hero.defeated && <span className="text-2xl ml-2">☠️</span>}
               </div>
-              <div className="mb-2">
+              
+              <img 
+                src={hero.image} 
+                alt={hero.name}
+                className="w-32 h-32 object-cover rounded border-2 border-gray-600"
+              />
+              
+              <div className="w-full">
                 <div className="flex justify-between text-sm mb-1">
                   <span>HP</span>
                   <span className="font-bold">{hero.hp}/{hero.maxHp}</span>
@@ -125,7 +135,7 @@ const Battlefield = ({ heroes, currentTurn, activeHeroIndex, selectingTarget, se
                   </div>
                 )}
                 {hero.statusEffects.length > 0 && (
-                <div className="mt-2 flex gap-1 flex-wrap">
+                <div className="mt-2 flex gap-1 flex-wrap justify-center">
                   {hero.statusEffects.map((effect, idx) => (
                     <span key={idx} className="text-xs bg-gray-700 px-2 py-1 rounded" title={effect.name}>
                       {effect.icon} {effect.turnsRemaining}

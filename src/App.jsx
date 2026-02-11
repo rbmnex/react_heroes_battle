@@ -180,10 +180,11 @@ function App() {
     
     const canUseAttack = (hero, attackCard) => {
       const jobName = hero.job.name;
-      if (jobName === 'Melee' && (attackCard.name === 'Normal Attack' || attackCard.name === 'Heavy Attack')) return true;
-      if (jobName === 'Ranged' && (attackCard.name === 'Normal Shot' || attackCard.name === 'Charge Shot')) return true;
-      if (jobName === 'Mage' && (attackCard.name === 'Normal Magic' || attackCard.name === 'Heavy Magic')) return true;
-      if (jobName === 'Support' && (attackCard.name === 'Normal Magic' || attackCard.name === 'Heavy Magic')) return true;
+      if (jobName === 'Melee' && attackCard.attackType === 'physical') return true;
+      if (jobName === 'Ranged' && attackCard.attackType === 'ranged') return true;
+      if (jobName === 'Mage' && (attackCard.attackType === 'magic' || attackCard.buffType === 'elementalMagic')) return true;
+      if (jobName === 'Support' && (attackCard.attackType === 'magic' || attackCard.type === 'support')) return true;
+    return false;
       return false;
     };
 

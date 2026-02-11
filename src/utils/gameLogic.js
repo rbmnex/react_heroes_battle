@@ -19,10 +19,10 @@ export const canHeroUseCard = (hero, card) => {
   if (!canHeroAct(hero)) return false;
   
   const jobName = hero.job.name;
-  if (jobName === 'Melee' && (card.name === 'Normal Attack' || card.name === 'Heavy Attack')) return true;
-  if (jobName === 'Ranged' && (card.name === 'Normal Shot' || card.name === 'Charge Shot')) return true;
-  if (jobName === 'Mage' && (card.name === 'Normal Magic' || card.name === 'Heavy Magic')) return true;
-  if (jobName === 'Support' && (card.name === 'Normal Magic' || card.name === 'Heavy Magic')) return true;
+  if (jobName === 'Melee' && card.attackType === 'physical') return true;
+    if (jobName === 'Ranged' && card.attackType === 'ranged') return true;
+    if (jobName === 'Mage' && (card.attackType === 'magic' || card.buffType === 'elementalMagic')) return true;
+    if (jobName === 'Support' && (card.attackType === 'magic' || card.type === 'support')) return true;
   return false;
 };
 

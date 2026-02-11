@@ -1,18 +1,7 @@
 // Initial State Model
-import { JOB_CLASSES } from './jobClasses';
+import { createAllHeroes } from './heroesModel';
 
-export const createInitialHeroes = () => ({
-  player1: [
-    { id: 1, name: 'Swordman', job: JOB_CLASSES.MELEE, hp: 60, maxHp: 60, defeated: false, statusEffects: [], shield: 0 },
-    { id: 2, name: 'Archer', job: JOB_CLASSES.RANGED, hp: 45, maxHp: 45, defeated: false, statusEffects: [], shield: 0 },
-    { id: 3, name: 'Wizard', job: JOB_CLASSES.MAGE, hp: 40, maxHp: 40, defeated: false, statusEffects: [], shield: 0 }
-  ],
-  player2: [
-    { id: 4, name: 'Warrior', job: JOB_CLASSES.MELEE, hp: 60, maxHp: 60, defeated: false, statusEffects: [], shield: 0 },
-    { id: 5, name: 'Gunner', job: JOB_CLASSES.RANGED, hp: 40, maxHp: 40, defeated: false, statusEffects: [], shield: 0 },
-    { id: 6, name: 'Cleric', job: JOB_CLASSES.SUPPORT, hp: 40, maxHp: 40, defeated: false, statusEffects: [], shield: 0 }
-  ]
-});
+export const createInitialHeroes = () => createAllHeroes();
 
 export const createInitialGameState = () => ({
   heroes: createInitialHeroes(),
