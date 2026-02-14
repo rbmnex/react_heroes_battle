@@ -1,21 +1,49 @@
 // Damage Resolution Controller
 import { STATUS_EFFECTS } from '../models/statusEffects';
 
-export const handleResolveAttack = (defenseCard, currentTurn, heroes, setHeroes, pendingAttack, activeBuff, remainingAttacks, setActiveBuff, setRemainingAttacks, setWaitingForReaction, setPendingAttack, setWaitingForNextAttack, setSelectingTarget, setPendingAttackCard, addLog, checkVictory) => {
+/**
+ * Resolve an attack - handle defense card, apply damage, status effects, and multi-attack logic
+ */
+export const resolveAttackController = (
+  defenseCard,
+  player1Hand,
+  setPlayer1Hand,
+  player2Hand,
+  setPlayer2Hand,
+  currentTurn,
+  heroes,
+  setHeroes,
+  pendingAttack,
+  activeBuff,
+  remainingAttacks,
+  setActiveBuff,
+  setRemainingAttacks,
+  setWaitingForReaction,
+  setPendingAttack,
+  setWaitingForNextAttack,
+  setSelectingTarget,
+  setPendingAttackCard,
+  addLog,
+  checkVictory,
+  setGameOver,
+  setWinner
+) => {
   if (!pendingAttack) return;
 
   const { card, attacker, attackerHero, defender, defenderHero, isFeint } = pendingAttack;
   let defenderDamage = card.damage;
   let attackerDamage = 0;
-  let attackEvaded = false;
+  let shieldAbsorbed = 0;
 
+  // Remove defense card if played
   if (defenseCard) {
     if (defender === 'player1') {
-      // Remove card from hand - note: this might need adjustment in context
+      setPlayer1Hand(prev => prev.filter(c => c.id !== defenseCard.id));
     } else {
-      // Remove card from hand - note: this might need adjustment in context
+      setPlayer2Hand(prev => prev.filter(c => c.id !== defenseCard.id));
     }
 
+    // Resolve defense interactions
     if (isFeint) {
       if ((defenseCard.defenseType === 'counter' && card.attackType === 'physical') ||
         (defenseCard.defenseType === 'deflect' && card.attackType === 'magic')) {
@@ -28,7 +56,6 @@ export const handleResolveAttack = (defenseCard, currentTurn, heroes, setHeroes,
     } else {
       if (defenseCard.defenseType === 'evade') {
         defenderDamage = 0;
-        attackEvaded = true;
         addLog(`💨 ${defenderHero.name} evades!`);
       } else if (defenseCard.defenseType === 'counter' && card.attackType === 'physical') {
         defenderDamage = Math.floor(card.damage * 0.5);
@@ -49,54 +76,76 @@ export const handleResolveAttack = (defenseCard, currentTurn, heroes, setHeroes,
     addLog(`💥 Full damage!`);
   }
 
-  // Apply damage to heroes
+  // Apply damage with shield absorption
   const newHeroes = {
     player1: heroes.player1.map(h => {
       if (h.id === defenderHero.id && defender === 'player1') {
-        const newHp = Math.max(0, h.hp - defenderDamage);
-        return { ...h, hp: newHp, defeated: newHp === 0 };
+        let damageAfterShield = defenderDamage;
+        let newShield = h.shield;
+        if (h.shield > 0) {
+          shieldAbsorbed = Math.min(h.shield, defenderDamage);
+          damageAfterShield = defenderDamage - shieldAbsorbed;
+          newShield = h.shield - shieldAbsorbed;
+        }
+        const newHp = Math.max(0, h.hp - damageAfterShield);
+        return { ...h, hp: newHp, shield: newShield, defeated: newHp === 0 };
       }
       if (h.id === attackerHero.id && attacker === 'player1') {
-        const newHp = Math.max(0, h.hp - attackerDamage);
-        return { ...h, hp: newHp, defeated: newHp === 0 };
+        let damageAfterShield = attackerDamage;
+        let newShield = h.shield;
+        if (h.shield > 0) {
+          const shieldAbsorbed = Math.min(h.shield, attackerDamage);
+          damageAfterShield = attackerDamage - shieldAbsorbed;
+          newShield = h.shield - shieldAbsorbed;
+        }
+        const newHp = Math.max(0, h.hp - damageAfterShield);
+        return { ...h, hp: newHp, shield: newShield, defeated: newHp === 0 };
       }
       return h;
     }),
     player2: heroes.player2.map(h => {
       if (h.id === defenderHero.id && defender === 'player2') {
-        const newHp = Math.max(0, h.hp - defenderDamage);
-        return { ...h, hp: newHp, defeated: newHp === 0 };
+        let damageAfterShield = defenderDamage;
+        let newShield = h.shield;
+        if (h.shield > 0) {
+          shieldAbsorbed = Math.min(h.shield, defenderDamage);
+          damageAfterShield = defenderDamage - shieldAbsorbed;
+          newShield = h.shield - shieldAbsorbed;
+        }
+        const newHp = Math.max(0, h.hp - damageAfterShield);
+        return { ...h, hp: newHp, shield: newShield, defeated: newHp === 0 };
       }
       if (h.id === attackerHero.id && attacker === 'player2') {
-        const newHp = Math.max(0, h.hp - attackerDamage);
-        return { ...h, hp: newHp, defeated: newHp === 0 };
+        let damageAfterShield = attackerDamage;
+        let newShield = h.shield;
+        if (h.shield > 0) {
+          const shieldAbsorbed = Math.min(h.shield, attackerDamage);
+          damageAfterShield = attackerDamage - shieldAbsorbed;
+          newShield = h.shield - shieldAbsorbed;
+        }
+        const newHp = Math.max(0, h.hp - damageAfterShield);
+        return { ...h, hp: newHp, shield: newShield, defeated: newHp === 0 };
       }
       return h;
     })
   };
 
-  // Apply status effect from card or from active elemental magic buff
+  // Apply status effects
   let statusToApply = card.statusEffect;
   if (!statusToApply && activeBuff && activeBuff.buffType === 'elementalMagic' && card.attackType === 'magic') {
     statusToApply = activeBuff.statusEffect;
   }
   
   if (statusToApply) {
-    // Determine who gets the status effect based on defense type
     let statusTargetHero = defenderHero;
     let statusTargetPlayer = defender;
     let isReflected = false;
 
     if (defenseCard && defenseCard.defenseType === 'deflect') {
-      // DEFLECT bounces status effect back to attacker
       statusTargetHero = attackerHero;
       statusTargetPlayer = attacker;
       isReflected = true;
-    } else if (defenseCard && defenseCard.defenseType === 'block') {
-      // BLOCK applies status effect to defender regardless of damage
-      // Keep defaults (statusTargetHero = defenderHero, statusTargetPlayer = defender)
-    } else if (defenderDamage <= 0) {
-      // Don't apply status if no damage (except for block)
+    } else if (defenderDamage <= 0 && !(defenseCard && defenseCard.defenseType === 'block')) {
       statusToApply = null;
     }
 
@@ -124,6 +173,7 @@ export const handleResolveAttack = (defenseCard, currentTurn, heroes, setHeroes,
 
   setHeroes(newHeroes);
 
+  // Log damage results
   if (defenderDamage > 0) {
     const updatedDefender = newHeroes[defender].find(h => h.id === defenderHero.id);
     addLog(`❤️ ${defenderHero.name}: ${defenderDamage} dmg (HP: ${updatedDefender.hp}/${updatedDefender.maxHp})${updatedDefender.defeated ? ' ☠️ DEFEATED!' : ''}`);
@@ -133,10 +183,8 @@ export const handleResolveAttack = (defenseCard, currentTurn, heroes, setHeroes,
     addLog(`💢 ${attackerHero.name}: ${attackerDamage} reflected (HP: ${updatedAttacker.hp}/${updatedAttacker.maxHp})${updatedAttacker.defeated ? ' ☠️ DEFEATED!' : ''}`);
   }
 
+  // Handle charge buff consequences
   if (activeBuff && activeBuff.buffType === 'charge') {
-    // addLog(`⚠️ CHARGE FAIL! Stunned next turn!`);
-    
-    // Apply stun to attacker when charge fails
     const stunEffect = {
       ...STATUS_EFFECTS.STUN,
       type: 'STUN',
@@ -157,8 +205,9 @@ export const handleResolveAttack = (defenseCard, currentTurn, heroes, setHeroes,
   setWaitingForReaction(false);
   setPendingAttack(null);
 
-  if (checkVictory(newHeroes)) return;
+  if (checkVictory(newHeroes, addLog, setGameOver, setWinner)) return;
 
+  // Handle multi-attack loop
   if (activeBuff && remainingAttacks > 1) {
     setRemainingAttacks(prev => prev - 1);
     setWaitingForNextAttack(true);

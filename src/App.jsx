@@ -8,6 +8,12 @@ import { createInitialHeroes } from './models/initialState';
 import { checkVictory, canHeroUseCard, processStatusEffects } from './utils/gameLogic';
 import { drawCardsToFive, generateCard } from './utils/cardGeneration';
 import { getCardVisual } from './utils/cardVisuals';
+// Controllers
+import { playBuffController } from './controllers/attackController';
+import { playAttackController, drawOneAndDiscardController, discardCardController } from './controllers/cardController';
+import { resolveAttackController } from './controllers/damageController';
+import { selectSupportTargetController } from './controllers/supportController';
+import { confirmEndTurnController } from './controllers/turnController';
 // Components
 import Battlefield from './components/Battlefield';
 import Hand from './components/Hand';
@@ -101,456 +107,161 @@ function App() {
     setHeroSupportCounts({});
   };
 
-  // CARD MANAGEMENT CONTROLLER
+  // CARD MANAGEMENT via controllers
   const handleDrawOneAndDiscard = () => {
-    if (drawUsedThisTurn) return;
-    const teamHeroes = heroes[currentTurn];
-    let activeHeroes = teamHeroes.filter(h => !h.defeated);
-    const newCard = generateCard(activeHeroes);
-    setDrawnCard(newCard);
-    setDrawUsedThisTurn(true);
-    if (currentTurn === 'player1') {
-      setPlayer1Hand(prev => [...prev, newCard]);
-    } else {
-      setPlayer2Hand(prev => [...prev, newCard]);
-    }
-    setWaitingForDiscard(true);
-    addLog(`${currentTurn === 'player1' ? 'Player 1' : 'Player 2'} draws 1 card. Select to discard.`);
+    drawOneAndDiscardController(
+      currentTurn,
+      activeHeroIndex,
+      heroes,
+      player1Hand,
+      setPlayer1Hand,
+      player2Hand,
+      setPlayer2Hand,
+      setDrawnCard,
+      setDrawUsedThisTurn,
+      setWaitingForDiscard,
+      drawUsedThisTurn,
+      addLog
+    );
   };
 
   const handleDiscardCard = (card) => {
-    if (!waitingForDiscard) return;
-    if (currentTurn === 'player1') {
-      setPlayer1Hand(prev => prev.filter(c => c.id !== card.id));
-    } else {
-      setPlayer2Hand(prev => prev.filter(c => c.id !== card.id));
-    }
-    addLog(`${currentTurn === 'player1' ? 'Player 1' : 'Player 2'} discards ${card.name}.`);
-    setDrawnCard(null);
-    setWaitingForDiscard(false);
+    discardCardController(
+      card,
+      currentTurn,
+      player1Hand,
+      setPlayer1Hand,
+      player2Hand,
+      setPlayer2Hand,
+      setDrawnCard,
+      setWaitingForDiscard,
+      waitingForDiscard,
+      addLog
+    );
   };
 
-  // BUFF CONTROLLER
+  // BUFF PLAY via controller
   const handlePlayBuff = (card) => {
-    const currentHand = getCurrentPlayerHand();
-    const attackCards = currentHand.filter(c => c.type === 'attack');
-    const magicCards = attackCards.filter(c => c.attackType === 'magic');
-    const hero = getActiveHero();
-
-    if (card.buffType === 'elementalMagic') {
-      if (hero.job.name !== 'Mage') {
-        addLog(`⚠️ Only Mages can use ${card.name}!`);
-        return;
-      }
-      if (magicCards.length < 1) {
-        addLog(`⚠️ ${card.name} requires at least 1 magic attack card! You have ${magicCards.length}.`);
-        return;
-      }
-    } else if (card.buffType === 'ready' && attackCards.length < 2) {
-      addLog(`⚠️ Ready requires at least 2 attack cards! You have ${attackCards.length}.`);
-      return;
-    } else if (attackCards.length < 1) {
-      addLog(`⚠️ Buff cards require at least 1 attack card!`);
-      return;
-    }
-
-    if (currentTurn === 'player1') {
-      setPlayer1Hand(prev => prev.filter(c => c.id !== card.id));
-    } else {
-      setPlayer2Hand(prev => prev.filter(c => c.id !== card.id));
-    }
-
-    setActiveBuff(card);
-    const totalAttacks = 1 + card.extraAttacks;
-    setRemainingAttacks(totalAttacks);
-    
-    if (card.buffType === 'elementalMagic') {
-      addLog(`✨ ${hero.name} (${hero.job.name}) channels ${card.name}! Magic attacks apply ${card.statusEffect}!`);
-    } else {
-      addLog(`🔥 ${hero.name} (${hero.job.name}) uses ${card.name}! ${totalAttacks} attacks!`);
-    }
-
-    if (card.buffType === 'charge') addLog(`⚠️ Charge: 0 damage = stunned!`);
-    if (card.buffType === 'feint') addLog(`💫 Feint: Unavoidable, -1 damage!`);
+    playBuffController(
+      card,
+      currentTurn,
+      activeHeroIndex,
+      heroes,
+      player1Hand,
+      setPlayer1Hand,
+      player2Hand,
+      setPlayer2Hand,
+      setActiveBuff,
+      setRemainingAttacks,
+      activeBuff,
+      addLog
+    );
   };
 
-  // ATTACK CONTROLLER
+  // ATTACK PLAY via controller
   const handlePlayAttack = (card, targetHeroId = null) => {
-    const attacker = getActiveHero();
-    
-    const canUseAttack = (hero, attackCard) => {
-      const jobName = hero.job.name;
-      if (jobName === 'Melee' && attackCard.attackType === 'physical') return true;
-      if (jobName === 'Ranged' && attackCard.attackType === 'ranged') return true;
-      if (jobName === 'Mage' && (attackCard.attackType === 'magic' || attackCard.buffType === 'elementalMagic')) return true;
-      if (jobName === 'Support' && (attackCard.attackType === 'magic' || attackCard.type === 'support')) return true;
-    return false;
-      return false;
-    };
-
-    if (!canUseAttack(attacker, card)) {
-      addLog(`⚠️ ${attacker.name} (${attacker.job.name}) cannot use ${card.name}!`);
-      return;
-    }
-
-    if (activeBuff && activeBuff.buffType === 'elementalMagic' && card.attackType !== 'magic') {
-      addLog(`⚠️ ${activeBuff.name} only combos with magic attacks!`);
-      return;
-    }
-
-    const maxAttacks = activeBuff ? (1 + activeBuff.extraAttacks) : 1;
-    const heroAttackCount = heroAttackCounts[attacker.id] || 0;
-
-    if (!targetHeroId) {
-      if (heroAttackCount >= maxAttacks) {
-        addLog(`⚠️ ${attacker.name} has already attacked ${maxAttacks} time${maxAttacks > 1 ? 's' : ''} this turn!`);
-        return;
-      }
-      
-      setPendingAttackCard(card);
-      setSelectingTarget(true);
-      setIsFirstAttackOfHero(true);
-      addLog(`Select target for ${card.name}...`);
-      return;
-    }
-
-    if (heroAttackCount >= maxAttacks) {
-      addLog(`⚠️ ${attacker.name} has already attacked ${maxAttacks} time${maxAttacks > 1 ? 's' : ''} this turn!`);
-      setSelectingTarget(false);
-      return;
-    }
-
-    const opponent = currentTurn === 'player1' ? 'player2' : 'player1';
-    const targetHero = heroes[opponent].find(h => h.id === targetHeroId);
-
-    if (!targetHero || targetHero.defeated) {
-      addLog(`⚠️ Invalid target!`);
-      return;
-    }
-
-    if (currentTurn === 'player1') {
-      setPlayer1Hand(prev => prev.filter(c => c.id !== card.id));
-    } else {
-      setPlayer2Hand(prev => prev.filter(c => c.id !== card.id));
-    }
-
-    let finalDamage = card.damage;
-    let isFeint = false;
-
-    if (activeBuff) {
-      finalDamage += activeBuff.damageModifier;
-      if (activeBuff.buffType === 'feint') isFeint = true;
-    }
-
-    setPendingAttack({
-      card: { ...card, damage: finalDamage },
-      attacker: currentTurn,
-      attackerHero: attacker,
-      defender: opponent,
-      defenderHero: targetHero,
-      isFeint
-    });
-
-    setWaitingForReaction(true);
-    setSelectingTarget(false);
-    setPendingAttackCard(null);
-
-    const icon = card.attackType === 'magic' ? '🔮' : '⚔️';
-    addLog(`${attacker.name} attacks ${targetHero.name} with ${card.name} ${icon} (${finalDamage} dmg)${isFeint ? ' [UNAVOIDABLE]' : ''}!`);
-    setHeroAttackCounts(prev => ({
-      ...prev,
-      [attacker.id]: (prev[attacker.id] || 0) + 1
-    }));
+    playAttackController(
+      card,
+      targetHeroId,
+      currentTurn,
+      activeHeroIndex,
+      heroes,
+      player1Hand,
+      setPlayer1Hand,
+      player2Hand,
+      setPlayer2Hand,
+      activeBuff,
+      heroAttackCounts,
+      setPendingAttackCard,
+      setSelectingTarget,
+      setPendingAttack,
+      setWaitingForReaction,
+      setIsFirstAttackOfHero,
+      setHeroAttackCounts,
+      addLog
+    );
   };
 
-  // DAMAGE RESOLUTION CONTROLLER
+  // DAMAGE RESOLUTION via controller
   const handleResolveAttack = (defenseCard = null) => {
-    if (!pendingAttack) return;
-
-    const { card, attacker, attackerHero, defender, defenderHero, isFeint } = pendingAttack;
-    let defenderDamage = card.damage;
-    let attackerDamage = 0;
-    let shieldAbsorbed = 0;
-
-    if (defenseCard) {
-      if (defender === 'player1') {
-        setPlayer1Hand(prev => prev.filter(c => c.id !== defenseCard.id));
-      } else {
-        setPlayer2Hand(prev => prev.filter(c => c.id !== defenseCard.id));
-      }
-
-      if (isFeint) {
-        if ((defenseCard.defenseType === 'counter' && card.attackType === 'physical') ||
-          (defenseCard.defenseType === 'deflect' && card.attackType === 'magic')) {
-          defenderDamage = Math.floor(card.damage * 0.5);
-          attackerDamage = Math.floor(card.damage * 0.5);
-          addLog(`${defenseCard.defenseType === 'counter' ? '⚡' : '🔮'} ${defenseCard.name}! Dmg: ${defenderDamage}, Reflect: ${attackerDamage}`);
-        } else {
-          addLog(`💫 Feint! ${defenseCard.name} has no effect!`);
-        }
-      } else {
-        if (defenseCard.defenseType === 'evade') {
-          defenderDamage = 0;
-          addLog(`💨 ${defenderHero.name} evades!`);
-        } else if (defenseCard.defenseType === 'counter' && card.attackType === 'physical') {
-          defenderDamage = Math.floor(card.damage * 0.5);
-          attackerDamage = Math.floor(card.damage * 0.5);
-          addLog(`⚡ Counter! Dmg: ${defenderDamage}, Reflect: ${attackerDamage}`);
-        } else if (defenseCard.defenseType === 'deflect' && card.attackType === 'magic') {
-          defenderDamage = Math.floor(card.damage * 0.5);
-          attackerDamage = Math.floor(card.damage * 0.5);
-          addLog(`🔮 Deflect! Dmg: ${defenderDamage}, Reflect: ${attackerDamage}`);
-        } else if (defenseCard.defenseType === 'block') {
-          defenderDamage = Math.max(0, card.damage - defenseCard.defense);
-          addLog(`🛡️ Blocked to ${defenderDamage}!`);
-        } else {
-          addLog(`⚠️ ${defenseCard.name} doesn't work!`);
-        }
-      }
-    } else {
-      addLog(`💥 Full damage!`);
-    }
-
-    const newHeroes = {
-      player1: heroes.player1.map(h => {
-        if (h.id === defenderHero.id && defender === 'player1') {
-          // Shield absorbs damage first
-          let damageAfterShield = defenderDamage;
-          let newShield = h.shield;
-          if (h.shield > 0) {
-            shieldAbsorbed = Math.min(h.shield, defenderDamage);
-            damageAfterShield = defenderDamage - shieldAbsorbed;
-            newShield = h.shield - shieldAbsorbed;
-          }
-          const newHp = Math.max(0, h.hp - damageAfterShield);
-          return { ...h, hp: newHp, shield: newShield, defeated: newHp === 0 };
-        }
-        if (h.id === attackerHero.id && attacker === 'player1') {
-          let damageAfterShield = attackerDamage;
-          let newShield = h.shield;
-          if (h.shield > 0) {
-            const shieldAbsorbed = Math.min(h.shield, attackerDamage);
-            damageAfterShield = attackerDamage - shieldAbsorbed;
-            newShield = h.shield - shieldAbsorbed;
-          }
-          const newHp = Math.max(0, h.hp - damageAfterShield);
-          return { ...h, hp: newHp, shield: newShield, defeated: newHp === 0 };
-        }
-        return h;
-      }),
-      player2: heroes.player2.map(h => {
-        if (h.id === defenderHero.id && defender === 'player2') {
-          // Shield absorbs damage first
-          let damageAfterShield = defenderDamage;
-          let newShield = h.shield;
-          if (h.shield > 0) {
-            shieldAbsorbed = Math.min(h.shield, defenderDamage);
-            damageAfterShield = defenderDamage - shieldAbsorbed;
-            newShield = h.shield - shieldAbsorbed;
-          }
-          const newHp = Math.max(0, h.hp - damageAfterShield);
-          return { ...h, hp: newHp, shield: newShield, defeated: newHp === 0 };
-        }
-        if (h.id === attackerHero.id && attacker === 'player2') {
-          let damageAfterShield = attackerDamage;
-          let newShield = h.shield;
-          if (h.shield > 0) {
-            const shieldAbsorbed = Math.min(h.shield, attackerDamage);
-            damageAfterShield = attackerDamage - shieldAbsorbed;
-            newShield = h.shield - shieldAbsorbed;
-          }
-          const newHp = Math.max(0, h.hp - damageAfterShield);
-          return { ...h, hp: newHp, shield: newShield, defeated: newHp === 0 };
-        }
-        return h;
-      })
-    };
-
-    let statusToApply = card.statusEffect;
-    if (!statusToApply && activeBuff && activeBuff.buffType === 'elementalMagic' && card.attackType === 'magic') {
-      statusToApply = activeBuff.statusEffect;
-    }
-    
-    if (statusToApply) {
-      let statusTargetHero = defenderHero;
-      let statusTargetPlayer = defender;
-      let isReflected = false;
-
-      if (defenseCard && defenseCard.defenseType === 'deflect') {
-        statusTargetHero = attackerHero;
-        statusTargetPlayer = attacker;
-        isReflected = true;
-      } else if (defenderDamage <= 0 && !(defenseCard && defenseCard.defenseType === 'block')) {
-        statusToApply = null;
-      }
-
-      if (statusToApply) {
-        const statusEffect = {
-          ...STATUS_EFFECTS[statusToApply],
-          type: statusToApply,
-          turnsRemaining: STATUS_EFFECTS[statusToApply].duration
-        };
-
-        newHeroes[statusTargetPlayer] = newHeroes[statusTargetPlayer].map(h =>
-          h.id === statusTargetHero.id ? {
-            ...h,
-            statusEffects: [...h.statusEffects.filter(e => e.type !== statusToApply), statusEffect]
-          } : h
-        );
-
-        if (isReflected) {
-          addLog(`${STATUS_EFFECTS[statusToApply].icon} ${statusTargetHero.name} is ${statusToApply}! [REFLECTED]`);
-        } else {
-          addLog(`${STATUS_EFFECTS[statusToApply].icon} ${statusTargetHero.name} is ${statusToApply}!`);
-        }
-      }
-    }
-
-    setHeroes(newHeroes);
-
-    if (defenderDamage > 0) {
-      const updatedDefender = newHeroes[defender].find(h => h.id === defenderHero.id);
-      addLog(`❤️ ${defenderHero.name}: ${defenderDamage} dmg (HP: ${updatedDefender.hp}/${updatedDefender.maxHp})${updatedDefender.defeated ? ' ☠️ DEFEATED!' : ''}`);
-    }
-    if (attackerDamage > 0) {
-      const updatedAttacker = newHeroes[attacker].find(h => h.id === attackerHero.id);
-      addLog(`💢 ${attackerHero.name}: ${attackerDamage} reflected (HP: ${updatedAttacker.hp}/${updatedAttacker.maxHp})${updatedAttacker.defeated ? ' ☠️ DEFEATED!' : ''}`);
-    }
-
-    if (activeBuff && activeBuff.buffType === 'charge') {
-      // addLog(`⚠️ CHARGE FAIL! Stunned next turn!`);
-      
-      const stunEffect = {
-        ...STATUS_EFFECTS.STUN,
-        type: 'STUN',
-        turnsRemaining: STATUS_EFFECTS.STUN.duration
-      };
-
-      newHeroes[attacker] = newHeroes[attacker].map(h =>
-        h.id === attackerHero.id ? {
-          ...h,
-          statusEffects: [...h.statusEffects.filter(e => e.type !== 'STUN'), stunEffect]
-        } : h
-      );
-      
-      setHeroes(newHeroes);
-      addLog(`💫 ${attackerHero.name} need to recharge!`);
-    }
-
-    setWaitingForReaction(false);
-    setPendingAttack(null);
-
-    if (checkVictory(newHeroes, addLog, setGameOver, setWinner)) return;
-
-    if (activeBuff && remainingAttacks > 1) {
-      setRemainingAttacks(prev => prev - 1);
-      setWaitingForNextAttack(true);
-      setSelectingTarget(false);
-      setPendingAttackCard(null);
-      addLog(`🔥 ${remainingAttacks - 1} attacks left!`);
-    } else {
-      setActiveBuff(null);
-      setRemainingAttacks(0);
-      setWaitingForNextAttack(false);
-      setSelectingTarget(false);
-      setPendingAttackCard(null);
-    }
+    resolveAttackController(
+      defenseCard,
+      player1Hand,
+      setPlayer1Hand,
+      player2Hand,
+      setPlayer2Hand,
+      currentTurn,
+      heroes,
+      setHeroes,
+      pendingAttack,
+      activeBuff,
+      remainingAttacks,
+      setActiveBuff,
+      setRemainingAttacks,
+      setWaitingForReaction,
+      setPendingAttack,
+      setWaitingForNextAttack,
+      setSelectingTarget,
+      setPendingAttackCard,
+      addLog,
+      checkVictory,
+      setGameOver,
+      setWinner
+    );
   };
 
-  // SUPPORT CARD CONTROLLER
+  // SUPPORT & TARGET SELECTION 
   const handleSelectTarget = (heroId) => {
+    // Handle support card targeting via controller
     if (selectingSupportTarget && pendingSupportCard) {
-      const supportCard = pendingSupportCard;
-      const team = heroes[currentTurn];
-      const targetHero = team.find(h => h.id === heroId);
-      const casterHero = getActiveHero();
-      
-      if (!targetHero || targetHero.defeated) {
-        addLog(`⚠️ Invalid target!`);
-        return;
-      }
-      
-      if (supportCard.effect === 'heal') {
-        setHeroes(prev => ({
-          ...prev,
-          [currentTurn]: prev[currentTurn].map(h =>
-            h.id === targetHero.id ? { 
-              ...h, 
-              hp: Math.min(h.maxHp, h.hp + supportCard.heal) 
-            } : h
-          )
-        }));
-        addLog(`💚 ${targetHero.name} healed ${supportCard.heal} HP!`);
-      } else if (supportCard.effect === 'cleanse') {
-        setHeroes(prev => ({
-          ...prev,
-          [currentTurn]: prev[currentTurn].map(h =>
-            h.id === targetHero.id ? { ...h, statusEffects: [] } : h
-          )
-        }));
-        addLog(`✨ ${targetHero.name} cleansed of all status effects!`);
-      } else if (supportCard.effect === 'shield') {
-        setHeroes(prev => ({
-          ...prev,
-          [currentTurn]: prev[currentTurn].map(h =>
-            h.id === targetHero.id ? { 
-              ...h, 
-              shield: h.shield + supportCard.shieldValue 
-            } : h
-          )
-        }));
-        addLog(`🛡️ ${targetHero.name} gains ${supportCard.shieldValue} shield! (Total: ${targetHero.shield + supportCard.shieldValue})`);
-      }
-      
-      if (currentTurn === 'player1') {
-        setPlayer1Hand(prev => prev.filter(c => c.id !== supportCard.id));
-      } else {
-        setPlayer2Hand(prev => prev.filter(c => c.id !== supportCard.id));
-      }
-      
-      setHeroSupportCounts(prev => ({
-        ...prev,
-        [casterHero.id]: (prev[casterHero.id] || 0) + 1
-      }));
-      
-      setSelectingSupportTarget(false);
-      setPendingSupportCard(null);
+      selectSupportTargetController(
+        heroId,
+        pendingSupportCard,
+        currentTurn,
+        activeHeroIndex,
+        heroes,
+        setHeroes,
+        setSelectingSupportTarget,
+        setPendingSupportCard,
+        setHeroSupportCounts,
+        player1Hand,
+        setPlayer1Hand,
+        player2Hand,
+        setPlayer2Hand,
+        addLog
+      );
       return;
     }
     
+    // Handle attack target selection (non-controller path for now)
     if (!selectingTarget || !pendingAttackCard) return;
     handlePlayAttack(pendingAttackCard, heroId);
   };
 
-  // TURN CONTROLLER
+  // TURN END via controller
   const handleConfirmEndTurn = () => {
-    const updatedHeroes = processStatusEffects(currentTurn, heroes, setHeroes, addLog, STATUS_EFFECTS);
-    
-    if (checkVictory(updatedHeroes, addLog, setGameOver, setWinner)) return;
-
-    const nextPlayer = currentTurn === 'player1' ? 'player2' : 'player1';
-    const nextTeam = updatedHeroes[nextPlayer];
-    let nextHeroIndex = nextTeam.findIndex(h => !h.defeated);
-    if (nextHeroIndex === -1) nextHeroIndex = 0;
-    
-    setCurrentTurn(nextPlayer);
-    setActiveHeroIndex(nextHeroIndex);
-    setDrawUsedThisTurn(false);
-    setActiveBuff(null);
-    setRemainingAttacks(0);
-    setWaitingForNextAttack(false);
-    setTurnCount(prev => prev + 1);
-    setHeroAttackCounts({});
-    setHeroSupportCounts({});
-    setIsFirstAttackOfHero(false);
-
-    if (nextPlayer === 'player1') {
-      setPlayer1Hand(drawCardsToFive(player1Hand, 'player1', updatedHeroes, addLog));
-    } else {
-      setPlayer2Hand(drawCardsToFive(player2Hand, 'player2', updatedHeroes, addLog));
-    }
-
-    addLog(`--- ${nextPlayer === 'player1' ? 'Player 1' : 'Player 2'}'s turn ---`);
+    confirmEndTurnController(
+      currentTurn,
+      heroes,
+      setHeroes,
+      player1Hand,
+      setPlayer1Hand,
+      player2Hand,
+      setPlayer2Hand,
+      setCurrentTurn,
+      setActiveHeroIndex,
+      setDrawUsedThisTurn,
+      setActiveBuff,
+      setRemainingAttacks,
+      setWaitingForNextAttack,
+      setTurnCount,
+      setHeroAttackCounts,
+      setHeroSupportCounts,
+      setIsFirstAttackOfHero,
+      setGameOver,
+      setWinner,
+      addLog
+    );
   };
 
   // Main Card Play Handler
