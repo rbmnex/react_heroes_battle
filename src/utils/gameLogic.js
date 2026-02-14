@@ -10,10 +10,16 @@ export const canHeroUseCard = (hero, card) => {
   if (card.type === 'support') {
     return hero.job.name === 'Support';
   }
-  // Elemental magic buffs only usable by Mage heroes
-  if (card.type === 'buff' && card.buffType === 'elementalMagic') {
-    return hero.job.name === 'Mage';
+  
+  if (card.type === 'buff') {
+    // Elemental magic buffs only usable by Mage heroes
+    if (card.buffType === 'elementalMagic') {
+      return hero.job.name === 'Mage';
+    } else {
+      return true; // Other buffs can be used by any hero with an attack card
+    }
   }
+
   if (card.type !== 'attack') return true;
   if (hero.hp <= 0) return false;
   if (!canHeroAct(hero)) return false;
@@ -21,7 +27,7 @@ export const canHeroUseCard = (hero, card) => {
   const jobName = hero.job.name;
   if (jobName === 'Melee' && card.attackType === 'physical') return true;
     if (jobName === 'Ranged' && card.attackType === 'ranged') return true;
-    if (jobName === 'Mage' && (card.attackType === 'magic' || card.buffType === 'elementalMagic')) return true;
+    if (jobName === 'Mage' && (card.attackType === 'magic')) return true;
     if (jobName === 'Support' && (card.attackType === 'magic' || card.type === 'support')) return true;
   return false;
 };

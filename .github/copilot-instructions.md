@@ -10,12 +10,20 @@
 - **Test**: No test suite configured yet; focus on manual battle flow testing
 
 ## Big Picture Architecture
-Single-page React app (no backend). All game logic and UI centralized in [src/App.jsx](src/App.jsx) (~1170 lines). State management via React hooks only—no external stores. The game is a 3v3 hero card battle where players take turns playing attack/buff/support cards; defenders react with defense cards. Victory when one team has all heroes defeated (HP → 0).
+Single-page React app (no backend) with modern, scalable architecture. Game logic is **refactored and modularized** across multiple layers for maintainability and extensibility. State management uses React hooks via [useGameState.js](src/hooks/useGameState.js) custom hook with centralized state initialization in [initialState.js](src/models/initialState.js). The game is a 3v3 hero card battle where players take turns playing attack/buff/support cards; defenders react with defense cards. Victory when one team has all heroes defeated (HP → 0).
+
+**Key Architecture layers**:
+1. **Models** ([src/models/](src/models/)): Define game constants—`cardTypes.js` (CARD_TYPES), `statusEffects.js` (STATUS_EFFECTS), `jobClasses.js` (JOB_CLASSES), `heroesModel.js` (hero creation), `initialState.js` (initial game state).
+2. **Controllers** ([src/controllers/](src/controllers/)): Pure functions handling game logic—`attackController.js` (buff/attack play), `cardController.js` (card selection/play), `damageController.js` (damage calculation), `supportController.js` (support card logic), `turnController.js` (turn transitions).
+3. **Views/Components** ([src/components/](src/components/)): React components for UI—Battlefield, Hand, BattleLog, Controls, GameOverModal, StatusBanners.
+4. **Utilities** ([src/utils/](src/utils/)): Helper functions—`gameLogic.js` (victory checks, status effect logic), `cardGeneration.js` (card drawing/generation), `cardVisuals.js` (visual styling for cards).
+5. **Hooks** ([src/hooks/](src/hooks/)): `useGameState.js` manages all game state via custom hook.
 
 ## Key Game Mechanics
 - **Heroes**: 6 heroes total (3 per player), each with job class (Melee, Ranged, Mage, Support), max HP, current HP, and `statusEffects[]` array. When HP reaches 0, marked `defeated`.
-- **Cards**: Five types—*attack* (damage 3–6, physical/ranged/magic; elemental magic cards apply status effects), *buff* (Focus, Charge, Ready, Feint; modify damage or grant extra attacks), *defense* (Block, Evade, Counter, Deflect; reduce/nullify damage or reflect), *support* (Heal, Cure; restore HP or cleanse effects, target any teammate).
+- **Cards**: Five types—*attack* (damage 3–6, physical/ranged/magic; elemental magic cards apply status effects via buff), *buff* (Focus, Charge, Ready, Feint; modify damage or grant extra attacks), *defense* (Block, Evade, Counter, Deflect; reduce/nullify damage or reflect), *support* (Heal, Cure, Shield; restore HP, cleanse effects, or add protective shield, target any teammate).
 - **Status Effects**: Six types (Burn, Freeze, Bleed, Stun, Poison, Paralyze). Each has icon, duration, and effect (damagePerTurn, skipTurn, etc.). Applied by elemental magic cards on hit, processed at turn end via `processStatusEffects()`.
+- **Elemental Magic**: Elemental magic cards (Fire, Ice, Wind, Earth, Ivy, Lightning) are **buff-type cards** that require a magic attack card. When used with a magic attack, they apply a status effect to the target on hit.
 - **Support Cards**: Can target any teammate (including self). Each hero can use 1 support card per turn, or 2 if READY buff is active. Usage counter resets at turn end.
 - **READY Buff**: Grants 2 attacks instead of 1, and allows 2 support card uses (instead of 1).
 - **Turn flow**: `currentTurn` player draws/plays cards → `drawCardsToFive()` refills hand to 5 → player plays attack/buff/support → if attack: `playAttack()` triggers `waitingForReaction` → defender plays defense or skips → `resolveAttack()` applies damage & status effects → if buff grants extra attacks, loop; else call `confirmEndTurn()` to process status effects, switch turns, draw cards.
@@ -25,33 +33,137 @@ Single-page React app (no backend). All game logic and UI centralized in [src/Ap
 - **Hands & Draw**: `player1Hand`, `player2Hand` (max 5 cards), `drawnCard` (single card from `drawOneAndDiscard()`), `waitingForDiscard`, `drawUsedThisTurn`
 - **Combat**: `pendingAttack` (attacker/defender/card/isFeint), `waitingForReaction`, `activeBuff` (buff card currently active), `remainingAttacks`, `waitingForNextAttack`, `heroAttackCounts` (tracks attacks per hero per turn)
 - **Support Cards**: `pendingSupportCard`, `selectingSupportTarget`, `heroSupportCounts` (tracks support uses per hero per turn)
-- **Selection**: `selectingTarget` (true when choosing opponent hero for attack), `pendingAttackCard` (temp storage during attack target selection)
+- **Selection**: `selectingTarget` (true when choosing opponent hero for attack), `pendingAttackCard` (temp storage during attack target selection), `isFirstAttackOfHero` (tracks if hero's first attack; used for early-abandon logic)
 - **Output**: `gameLog` (array of event messages)
 
 ## File Reference
-- [src/App.jsx](src/App.jsx) — entire game logic (1170 lines); `App()` function contains all state, helpers, and UI rendering
+
+### Core Application
+- [src/App.jsx](src/App.jsx) — Main React component (~726 lines); orchestrates hooks, renders components, exports game UI
 - [src/main.jsx](src/main.jsx) — React mount point
+- [src/hooks/useGameState.js](src/hooks/useGameState.js) — Custom hook managing all game state via useState; centralized state initialization and `addLog()`, `resetGame()` helpers
+
+### Models (Game Constants & Data)
+- [src/models/cardTypes.js](src/models/cardTypes.js) — CARD_TYPES object: all attack/buff/defense/support card definitions
+- [src/models/statusEffects.js](src/models/statusEffects.js) — STATUS_EFFECTS object: all status effect definitions (Burn, Freeze, Bleed, Stun, Poison, Paralyze)
+- [src/models/jobClasses.js](src/models/jobClasses.js) — JOB_CLASSES object: hero job definitions (Melee, Ranged, Mage, Support)
+- [src/models/heroesModel.js](src/models/heroesModel.js) — `createAllHeroes()` function: generates initial 6 heroes (3 per player)
+- [src/models/initialState.js](src/models/initialState.js) — `createInitialGameState()` and `createInitialHeroes()` functions: game state and heroes initialization
+
+### Controllers (Game Logic)
+- [src/controllers/attackController.js](src/controllers/attackController.js) — `handlePlayBuff()`: validates and plays buff cards; manages elemental magic constraints
+- [src/controllers/cardController.js](src/controllers/cardController.js) — `playCard()`, `selectTarget()`: main card play entry point; card type routing (attack, buff, defense, support)
+- [src/controllers/damageController.js](src/controllers/damageController.js) — `calculateDamage()`, `resolveAttack()`: damage calculation, buff application, defense resolution, status effect application, death checking
+- [src/controllers/supportController.js](src/controllers/supportController.js) — `playSupportCard()`, `applyShield()`, `healHero()`, `cleanseHero()`: support card play and effects
+- [src/controllers/turnController.js](src/controllers/turnController.js) — `confirmEndTurn()`, `switchTurn()`: end turn processing (status effects, turn switch, card draw), multi-attack loop management
+
+### Utilities (Helper Functions)
+- [src/utils/gameLogic.js](src/utils/gameLogic.js) — `checkVictory()`, `applyStatusEffect()`, `processStatusEffects()`, `canHeroAct()`, `canHeroUseCard()`: core game logic (victory detection, status effect application/processing, hero action validation)
+- [src/utils/cardGeneration.js](src/utils/cardGeneration.js) — `drawCardsToFive()`, `generateCard()`: card draw/generation (fills hand to 5, generates random cards from job-specific pools)
+- [src/utils/cardVisuals.js](src/utils/cardVisuals.js) — `getCardVisual()`: card styling (colors, icons for attack types/buff types/defense types)
+
+### Components (UI)
+- [src/components/Battlefield.jsx](src/components/Battlefield.jsx) — Hero grid display; target selection UI
+- [src/components/Hand.jsx](src/components/Hand.jsx) — Player hand display; card play UI
+- [src/components/BattleLog.jsx](src/components/BattleLog.jsx) — Game event log/message display
+- [src/components/Controls.jsx](src/components/Controls.jsx) — Game control buttons (Start, End Turn, Draw/Discard, Reaction options)
+- [src/components/GameOverModal.jsx](src/components/GameOverModal.jsx) — Victory/defeat screen
+- [src/components/StatusBanners.jsx](src/components/StatusBanners.jsx) — Status effect display on hero cards
+
+### Configuration & Styling
 - [index.html](index.html), [vite.config.js](vite.config.js) — Vite config
 - [tailwind.config.js](tailwind.config.js), [postcss.config.js](postcss.config.js), [src/index.css](src/index.css), [src/App.css](src/App.css) — styling (Tailwind + dark theme)
 - [package.json](package.json) — scripts and deps (React 19, Vite 7, Tailwind 3)
+
+### Legacy/Experimental
 - Phase*.jsx files — legacy experiment pages; ignore for main game
 
 ## Project-Specific Patterns
-1. **Centralized state in App.jsx**: All game logic lives in one ~1247-line component. Prefer adding helper functions inside App rather than extracting to separate files (unless major refactor discussed first).
-2. **Logging with `addLog()`**: Every game event must call `addLog(message)`. These appear in the Battle Log UI—order and clarity are critical. Examples: attack plays, damage taken, status effects applied, turn transitions.
-3. **Hero updates via `setHeroes()`**: Never mutate hero directly; always map array and return new objects. Clamp HP to [0, maxHp]. Always preserve `statusEffects` and `shield` properties.
-4. **Status effect workflow**: (1) Elemental magic cards carry `statusEffect: 'TYPE'` and `damage: 0`; (2) `resolveAttack()` applies status effects if damage >= 0; (3) `confirmEndTurn()` calls `processStatusEffects()` to apply per-turn effects and decrement durations.
-5. **Support card pattern**: `playCard(card)` with `card.type === 'support'` → checks `heroSupportCounts` and READY buff → enters `selectingSupportTarget` → player clicks teammate → `selectTarget(heroId)` applies effect (heal, cleanse, or shield) → increments counter. **Use `applyShield()`, `healHero()`, `cleanseHero()` for support effects.**
-6. **Attack resolution pattern**: `playAttack(card, targetId)` → sets `pendingAttack` + `waitingForReaction` → defender's `resolveAttack(defenseCard)` → damage applied → status effects applied → if buff with extra attacks, loop; else done.
-7. **Card generation**: `generateCard(activeHeroes)` returns random card from combined pool of all active (non-defeated) heroes. Mages get elemental magic cards in addition to normal attacks. Support heroes get Cure/Heal/Shield. Add new card types to `CARD_TYPES` object at top of App.jsx, then add to pool in `generateCard()`.
-8. **Shield system**: Heroes have `shield` property (initialized to 0). `applyShield()` adds to shield amount. Shield is visual only—doesn't reduce damage yet (feature for future implementation).
+
+### State Management
+1. **useGameState.js Hook**: Central state management via custom hook. App.jsx calls `useGameState()` to get all state and setters. All state initialization happens in `createInitialGameState()` in [src/models/initialState.js](src/models/initialState.js).
+2. **State Shape**: State is organized by feature (core, hands, combat, selection, support, etc). Avoid deeply nested state; keep properties at top level for easy access in controllers.
+3. **Hero Updates**: Heroes stored as `{ player1: [hero1, hero2, hero3], player2: [hero1, hero2, hero3] }`. Never mutate directly; always map and return new objects. Clamp HP to [0, maxHp]. Always preserve `statusEffects` and `shield` properties.
+
+### Controller Functions
+1. **Controller Pattern**: Controllers in [src/controllers/](src/controllers/) are pure functions that receive state and setters as parameters. They return void and update state via setters. Examples:
+   - `attackController.js`: `handlePlayBuff(card, currentTurn, activeHeroIndex, heroes, player1Hand, setPlayer1Hand, player2Hand, setPlayer2Hand, ...setters, addLog)`
+   - `damageController.js`: `resolveAttack(pendingAttack, defendingHeroId, defenseCard, heroes, setHeroes, ...setters, addLog)`
+   - `supportController.js`: `playSupportCard(card, currentTurn, activeHeroIndex, heroes, setHeroes, ...setters, addLog)`
+   - `turnController.js`: `confirmEndTurn(currentTurn, heroes, setHeroes, ...setters, addLog)`
+2. **Logging**: Every game event must call `addLog(message)`. These appear in the Battle Log UI—order and clarity are critical. Examples: card plays, damage taken, status effects applied, turn transitions.
+3. **When to Add Controllers**: If a feature spans multiple steps or requires complex validation, create a controller function. Single-step logic can stay in App.jsx or components.
+
+### Game Logic Utilities
+1. **Validation Functions** in [src/utils/gameLogic.js](src/utils/gameLogic.js):
+   - `canHeroUseCard(hero, card)`: Check if hero can play card (job restrictions, card type, hero status)
+   - `canHeroAct(hero)`: Check if hero can act (no skip-turn status effects)
+   - `checkVictory(heroes, addLog, setGameOver, setWinner)`: Check end condition on hero defeat
+2. **Status Effect Logic**:
+   - `applyStatusEffect(heroId, player, statusType, heroes, setHeroes, addLog, STATUS_EFFECTS)`: Apply a status effect to a hero
+   - `processStatusEffects(player, heroes, setHeroes, addLog, STATUS_EFFECTS)`: Process DOT damage, decrement durations, remove expired effects (called at turn end)
+
+### Card System Patterns
+1. **Card Generation**: `drawCardsToFive()` in [src/utils/cardGeneration.js](src/utils/cardGeneration.js) fills hand to 5 cards from job-specific pools. Each hero generates cards from their job pool: Melee → physical attacks, Ranged → ranged attacks, Mage → magic attacks + elemental magic buffs, Support → magic attacks + support cards.
+2. **Card Types**: Defined in [src/models/cardTypes.js](src/models/cardTypes.js). Five categories:
+   - **Attack**: `{ type: 'attack', attackType: 'physical'|'ranged'|'magic', damage: number }`
+   - **Buff**: `{ type: 'buff', buffType: 'focus'|'charge'|'ready'|'feint'|'elementalMagic', damageModifier: number, extraAttacks: number, statusEffect?: string }`
+   - **Defense**: `{ type: 'defense', defenseType: 'block'|'evade'|'counter'|'deflect', defense: number, counterType?: string }`
+   - **Support**: `{ type: 'support', effect: 'heal'|'cleanse'|'shield', heal?: number, shieldValue?: number }`
+3. **Adding New Cards**:
+   - Define in [src/models/cardTypes.js](src/models/cardTypes.js) CARD_TYPES object
+   - Add to job-specific pool in `generateCard()` in [src/utils/cardGeneration.js](src/utils/cardGeneration.js)
+   - If new type, add handler in [src/controllers/cardController.js](src/controllers/cardController.js) `playCard()` function
+
+### Status Effect Workflow
+1. **Definition**: Each status effect in [src/models/statusEffects.js](src/models/statusEffects.js) has: name, icon, duration, damagePerTurn (optional), skipTurn (optional)
+2. **Application**: Elemental magic buffs carry `statusEffect: 'TYPE'`. When magic attack hits, `resolveAttack()` calls `applyStatusEffect()` to add status to target.
+3. **Processing**: At turn end, `confirmEndTurn()` calls `processStatusEffects()` which: (1) applies damage-over-time effects, (2) decrements durations, (3) removes expired effects. Events logged to Battle Log.
+
+### Support Card Workflow
+1. **Play**: `playCard()` with `card.type === 'support'` → checks `canHeroUseCard()` → checks `heroSupportCounts` and READY buff → enters `selectingSupportTarget` mode
+2. **Target Selection**: Player clicks teammate in UI → `selectTarget(heroId)` applies effect (heal, cleanse, or shield) → increments `heroSupportCounts[heroId]` counter
+3. **Counter Reset**: `confirmEndTurn()` resets `heroSupportCounts` for next turn
+4. **Effects**: Use helper functions in [src/controllers/supportController.js](src/controllers/supportController.js): `applyShield()`, `healHero()`, `cleanseHero()`
+
+### Attack & Buff Workflow
+1. **Buff Play**: `handlePlayBuff()` validates buff requirements (e.g., elemental magic requires Mage, requires magic attack cards). Sets `activeBuff` and `remainingAttacks`.
+2. **Attack Play**: `playCard()` with `card.type === 'attack'` → enters `selectingTarget` mode → player clicks opponent hero → `playAttack()` sets `pendingAttack` + `waitingForReaction`
+3. **Reaction**: Defender plays defense card or skips → `resolveAttack()` applies damage, buffs, status effects → if buff has extra attacks, loops; else `confirmEndTurn()`
+4. **Extra Attacks**: READY buff grants 2 attacks per turn; loop continues until `remainingAttacks === 0`, then `confirmEndTurn()` ends turn
+
+### Shield System
+1. **Current**: `applyShield()` adds to hero's `shield` property (visual only, doesn't reduce damage yet)
+2. **Future Enhancement**: To implement shield damage reduction, modify `resolveAttack()` to consume shield before HP damage, decrement `hero.shield` when damage taken
+
+### Hero Skill Restrictions
+1. **Attack Type Restrictions**:
+   - Melee: physical attacks only
+   - Ranged: ranged attacks only
+   - Mage: magic attacks + elemental magic buffs
+   - Support: magic attacks + support cards
+2. **Buff Type Restrictions**:
+   - Elemental magic (Fire, Ice, Wind, Earth, Ivy, Lightning): Mage only, requires magic attack card in hand
+   - Ready: requires 2+ attack cards in hand
+   - Other buffs (Focus, Charge, Feint): require 1+ attack card in hand
+3. **Support Card Restrictions**: Support heroes only (enforced in `canHeroUseCard()` and `playCard()`)
+
+### Draw & Discard
+1. **Flow**: Hand starts at 5 cards (drawn in `startGame()`). When player plays a card, hand size decreases. To draw new cards: `drawOneAndDiscard()` → `waitingForDiscard` → player selects card to discard → `drawCardsToFive()` refills hand to 5.
+2. **Refill**: Called at turn end in `confirmEndTurn()` and after draw/discard action. Always passes correct player name ('player1' or 'player2') and current heroes state.
+
+### Multiattack Loop (READY buff)
+1. **State Management**: `activeBuff` tracks current buff. `remainingAttacks` tracks attacks left. `heroAttackCounts` tracks which heroes have attacked this turn.
+2. **Flow**: After `resolveAttack()` completes, if `remainingAttacks > 0` and hero hasn't exceeded limit, `waitingForNextAttack` → player selects another target or defense hero plays counter → repeat until `remainingAttacks === 0` → `confirmEndTurn()`
+3. **Early Abandon**: If hero's first attack is feint or misses (damage 0), can abandon buff and end turn manually via `confirmEndTurn()`
 
 ## Editing Examples
-- **Add new elemental magic card**: Define in `CARD_TYPES` (e.g., `THUNDER_MAGIC: { name: 'Thunder Magic', type: 'buff', buffType: 'elementalMagic', element: 'thunder', statusEffect: 'PARALYZE', damageModifier: 1, extraAttacks: 0 }`), add to pool in `generateCard()` for Mages, ensure `STATUS_EFFECTS.PARALYZE` is defined. Status effect triggers on magic attack hit if damage >= 0.
-- **Add new status effect**: Define in `STATUS_EFFECTS` at top (e.g., `SLEEP: { name: 'Sleep', icon: '😴', skipTurn: true, duration: 2 }`). Create elemental magic card that applies it via `statusEffect: 'SLEEP'`. `applyStatusEffect()` and `processStatusEffects()` handle the rest.
-- **Modify buff logic**: Edit `playBuff()` (check requirements), then update `resolveAttack()` (apply damage mod), and `confirmEndTurn()` if needed. Test multi-attack loops with `remainingAttacks` and READY buff.
-- **Add support card**: Define in `CARD_TYPES` (e.g., `REVIVE: { name: 'Revive', type: 'support', effect: 'revive', heal: 0 }`), then in `playCard()` the `card.type === 'support'` block handles target selection. Create a helper like `reviveHero()` in the support effect section, and increment `heroSupportCounts` in `selectTarget()`.
-- **Implement shield mechanics**: Currently `applyShield()` adds to hero's `shield` property (displayed visually). To make shields reduce damage: modify `resolveAttack()` to consume shield before HP, decrement `hero.shield` when damage taken, and update the damage display.
+- **Add new attack card**: Define in CARD_TYPES (e.g., `FIRE_STRIKE: { name: 'Fire Strike', damage: 5, type: 'attack', attackType: 'physical' }`), add to job-specific pools in `generateCard()`
+- **Add new buff card**: Define in CARD_TYPES with `type: 'buff'`, specify `buffType`, `damageModifier`, `extraAttacks`. Validation in `handlePlayBuff()`.
+- **Add new status effect**: Define in `STATUS_EFFECTS` (e.g., `SLEEP: { name: 'Sleep', icon: '😴', skipTurn: true, duration: 2 }`). Create elemental magic card that applies it. `applyStatusEffect()` and `processStatusEffects()` handle rest.
+- **Add support card**: Define in CARD_TYPES (e.g., `REVIVE: { name: 'Revive', type: 'support', effect: 'revive', heal: 0 }`). Add handler in `selectTarget()` in [src/controllers/cardController.js](src/controllers/cardController.js). Create helper in [src/controllers/supportController.js](src/controllers/supportController.js).
+- **Implement shield mechanics**: Currently `applyShield()` adds visual shield. To reduce damage: modify `resolveAttack()` to consume shield before HP, and update damage display.
+- **Add new job class**: Define in [src/models/jobClasses.js](src/models/jobClasses.js), add hero in `createAllHeroes()` in [src/models/heroesModel.js](src/models/heroesModel.js), add card generation logic in `generateCard()`, update `canHeroUseCard()` if needed
 
 ## UI/UX Notes (Preserve These)
 - **Draw-when-full flow**: Only when hand is full (5 cards) can player click "Draw & Discard" → `drawOneAndDiscard()` adds card and sets `waitingForDiscard` → UI highlights new card with green pulse ring → player must click a card to discard (can be the new card or existing).
@@ -62,18 +174,21 @@ Single-page React app (no backend). All game logic and UI centralized in [src/Ap
 
 ## Debugging Tips
 - Use Battle Log (bottom panel) to trace event order; prefer `addLog()` over `console.log`.
-- Run `npm run dev`, inspect browser console for stack traces. Most logic is synchronous in [src/App.jsx](src/App.jsx).
+- Run `npm run dev`, inspect browser console for stack traces. Most logic is synchronous in controllers and [src/App.jsx](src/App.jsx).
 - Check state values by adding temporary `addLog()` statements (e.g., `addLog(\`Debug: activeBuff = ${activeBuff}, remainingAttacks = ${remainingAttacks}\`)`) to trace game state.
 - For support cards: verify `heroSupportCounts` tracked, check if READY buff active for 2-use rule, confirm `selectingSupportTarget` correctly shows only own team as targets.
 - For card drawing: ensure `drawCardsToFive()` called with correct player name format ('player1'/'player2' lowercase, no spaces) and updated heroes state passed.
+- For controller debugging: pass `addLog` to all controller functions to log state transitions and verify parameter passing.
 
 ## What NOT to Change Without Discussion
-- **Don't split App.jsx** into separate component files without approval; reviewers expect logic consolidated.
-- **Don't alter `addLog()` messages** unless clarifying UX; these are gameplay-critical and part of the user experience.
+- **Don't bypass controllers**: Game logic should flow through controller functions, not directly in components or App.jsx state setters. Controllers are the source of truth for game rules.
+- **Don't alter core turn/attack resolution logic** in [src/controllers/turnController.js](src/controllers/turnController.js) or [src/controllers/damageController.js](src/controllers/damageController.js) without confirming game balance implications (especially multi-attack flow, status effect timing, support card usage limits).
 - **Don't change core turn/attack resolution logic** without confirming game balance implications (especially multi-attack flow, status effect timing, support card usage limits).
 - **Don't modify hero HP logic** (clamp, defeat state, victory check) without approval—these affect gameplay.
 - **Don't alter status effect timing**: Effects apply on hit, not at resolution end; durations decrement at turn end, not mid-combat.
 - **Don't change support card targeting** without discussion—allows any teammate (same team only), not opponents.
+- **Don't modify `useGameState.js` hook structure** without discussion—central to entire app state management.
+- **Don't alter `addLog()` messages** unless clarifying UX; these are gameplay-critical and part of the user experience.
 
 ## Known Issues & Future Features
 - **Shield Implementation**: `applyShield()` currently adds to hero's `shield` property (visual only). Shield doesn't reduce damage yet. To implement: modify `resolveAttack()` to consume shield before HP damage.
