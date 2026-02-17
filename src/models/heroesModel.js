@@ -1,5 +1,6 @@
 // Heroes Model - Centralized hero definitions and utilities
 import { JOB_CLASSES } from './jobClasses';
+import { HERO_SKILLS } from './heroSkills';
 
 // Import hero images
 import swordmanImage from '../assets/models/swordman_square.png';
@@ -22,7 +23,8 @@ export const HEROES = {
     job: JOB_CLASSES.MELEE,
     maxHp: 60,
     description: 'A strong melee fighter with high HP',
-    image: swordmanImage
+    image: swordmanImage,
+    heroSkill: HERO_SKILLS.POWER_STRIKE
   },
   ARCHER: {
     id: 2,
@@ -31,7 +33,8 @@ export const HEROES = {
     job: JOB_CLASSES.RANGED,
     maxHp: 40,
     description: 'Precise ranged attacker',
-    image: archerImage
+    image: archerImage,
+    heroSkill: HERO_SKILLS.HEADSHOT
   },
   WIZARD: {
     id: 3,
@@ -40,7 +43,8 @@ export const HEROES = {
     job: JOB_CLASSES.MAGE,
     maxHp: 40,
     description: 'Powerful mage with elemental magic',
-    image: wizardImage
+    image: wizardImage,
+    heroSkill: HERO_SKILLS.ELEMENTAL_MASTERY
   },
 
   // Player 2 Team
@@ -51,7 +55,8 @@ export const HEROES = {
     job: JOB_CLASSES.MELEE,
     maxHp: 65,
     description: 'A tough melee combatant',
-    image: warriorImage
+    image: warriorImage,
+    heroSkill: HERO_SKILLS.BLADE_FURY
   },
   GUNNER: {
     id: 5,
@@ -60,16 +65,18 @@ export const HEROES = {
     job: JOB_CLASSES.RANGED,
     maxHp: 40,
     description: 'Skilled gunner with high damage',
-    image: gunnerImage
+    image: gunnerImage,
+    heroSkill: HERO_SKILLS.RAPID_FIRE
   },
   CLERIC: {
     id: 6,
     name: 'Cleric',
     team: 'player2',
     job: JOB_CLASSES.SUPPORT,
-    maxHp: 35,
+    maxHp: 45,
     description: 'Healer and support specialist',
-    image: clericImage
+    image: clericImage,
+    heroSkill: HERO_SKILLS.MASS_HEAL
   }
 };
 
@@ -78,10 +85,9 @@ export const HEROES = {
  * Organized by team for easy access
  */
 export const HERO_TEAMS = {
-  player1: [HEROES.WARRIOR, HEROES.ARCHER, HEROES.WIZARD],
-  player2: [HEROES.SWORDMAN, HEROES.GUNNER, HEROES.CLERIC]
+  player1: [HEROES.SWORDMAN, HEROES.ARCHER, HEROES.WIZARD],
+  player2: [HEROES.WARRIOR, HEROES.GUNNER, HEROES.CLERIC]
 };
-
 /**
  * Helper function to create a hero instance with game state properties
  * @param {Object} heroDefinition - Hero definition from HEROES object
@@ -96,7 +102,8 @@ export const createHeroInstance = (heroDefinition) => ({
   hp: heroDefinition.maxHp,
   defeated: false,
   statusEffects: [],
-  shield: 0
+  shield: 0,
+  heroSkill: heroDefinition.heroSkill
 });
 
 /**

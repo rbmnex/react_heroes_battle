@@ -31,6 +31,8 @@ export const useGameState = () => {
   const [heroAttackCounts, setHeroAttackCounts] = useState(initialState.heroAttackCounts);
   const [heroSupportCounts, setHeroSupportCounts] = useState(initialState.heroSupportCounts);
   const [isFirstAttackOfHero, setIsFirstAttackOfHero] = useState(initialState.isFirstAttackOfHero);
+  const [triggeredSkill, setTriggeredSkill] = useState(initialState.triggeredSkill);
+  const [skillIndicatorVisible, setSkillIndicatorVisible] = useState(initialState.skillIndicatorVisible);
 
   const addLog = (message) => setGameLog(prev => [...prev, message]);
 
@@ -62,6 +64,8 @@ export const useGameState = () => {
     setHeroAttackCounts(newInitialState.heroAttackCounts);
     setHeroSupportCounts(newInitialState.heroSupportCounts);
     setIsFirstAttackOfHero(newInitialState.isFirstAttackOfHero);
+    setTriggeredSkill(newInitialState.triggeredSkill);
+    setSkillIndicatorVisible(newInitialState.skillIndicatorVisible);
   };
 
   const getActiveHero = () => {
@@ -99,6 +103,8 @@ export const useGameState = () => {
     heroAttackCounts, setHeroAttackCounts,
     heroSupportCounts, setHeroSupportCounts,
     isFirstAttackOfHero, setIsFirstAttackOfHero,
+    triggeredSkill, setTriggeredSkill,
+    skillIndicatorVisible, setSkillIndicatorVisible,
     // Actions
     addLog,
     resetGame,

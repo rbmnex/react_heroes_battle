@@ -1,5 +1,6 @@
 // Card Management and Routing Controller
 import { generateCard } from '../utils/cardGeneration';
+import { checkBuffAttackSkill, applySkillToAttack } from './skillController';
 
 /**
  * Play an attack card - handles target selection or direct attack with target
@@ -22,6 +23,8 @@ export const playAttackController = (
   setWaitingForReaction,
   setIsFirstAttackOfHero,
   setHeroAttackCounts,
+  setTriggeredSkill,
+  setSkillIndicatorVisible,
   addLog
 ) => {
   const attacker = heroes[currentTurn][activeHeroIndex];
@@ -31,8 +34,8 @@ export const playAttackController = (
     const jobName = hero.job.name;
     if (jobName === 'Melee' && attackCard.attackType === 'physical') return true;
     if (jobName === 'Ranged' && attackCard.attackType === 'ranged') return true;
-    if (jobName === 'Mage' && (attackCard.attackType === 'magic' || attackCard.buffType === 'elementalMagic')) return true;
-    if (jobName === 'Support' && (attackCard.attackType === 'magic' || attackCard.type === 'support')) return true;
+    if (jobName === 'Mage' && attackCard.attackType === 'magic') return true;
+    if (jobName === 'Support' && attackCard.attackType === 'magic') return true;
     return false;
   };
 
@@ -88,6 +91,7 @@ export const playAttackController = (
 
   let finalDamage = card.damage;
   let isFeint = false;
+  let triggeredSkill = null;
 
   if (activeBuff) {
     finalDamage += activeBuff.damageModifier;
@@ -96,15 +100,45 @@ export const playAttackController = (
     }
   }
 
+  // Check for skill trigger (buff + attack combinations)
+  const isFirstAttack = (heroAttackCounts[attacker.id] || 0) === 0;
+  triggeredSkill = checkBuffAttackSkill(
+    attacker,
+    activeBuff,
+    card,
+    isFirstAttack,
+    heroes,
+    currentTurn
+  );
+
   // Set pending attack and wait for defender's reaction
-  setPendingAttack({
+  let pendingAttackObj = {
     card: { ...card, damage: finalDamage },
     attacker: currentTurn,
     attackerHero: attacker,
     defender: opponent,
     defenderHero: targetHero,
-    isFeint
-  });
+    isFeint,
+    ignoresBlock: false,
+    ignoreShield: false,
+    skillTriggered: null,
+    skillName: null,
+    skillIcon: null
+  };
+
+  // Apply skill effects if triggered
+  if (triggeredSkill) {
+    pendingAttackObj = applySkillToAttack(triggeredSkill, pendingAttackObj, heroes, currentTurn, addLog);
+    // Show skill indicator
+    setTriggeredSkill(triggeredSkill);
+    setSkillIndicatorVisible(true);
+    // Hide indicator after 2 seconds
+    setTimeout(() => {
+      setSkillIndicatorVisible(false);
+    }, 2000);
+  }
+
+  setPendingAttack(pendingAttackObj);
 
   setWaitingForReaction(true);
   setSelectingTarget(false);

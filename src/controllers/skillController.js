@@ -1,5 +1,6 @@
 // Skill Detection and Execution Controller
 import { HERO_SKILLS, detectPossibleSkills, applySkillEffects, canHeroUseSkill } from '../models/heroSkills';
+import { CARD_TYPES } from '../models/cardTypes';
 
 /**
  * Check if current card play can trigger any hero skills

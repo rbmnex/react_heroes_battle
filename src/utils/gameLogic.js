@@ -26,9 +26,9 @@ export const canHeroUseCard = (hero, card) => {
   
   const jobName = hero.job.name;
   if (jobName === 'Melee' && card.attackType === 'physical') return true;
-    if (jobName === 'Ranged' && card.attackType === 'ranged') return true;
-    if (jobName === 'Mage' && (card.attackType === 'magic')) return true;
-    if (jobName === 'Support' && (card.attackType === 'magic' || card.type === 'support')) return true;
+  if (jobName === 'Ranged' && card.attackType === 'ranged') return true;
+  if (jobName === 'Mage' && card.attackType === 'magic') return true;
+  if (jobName === 'Support' && card.attackType === 'magic') return true;
   return false;
 };
 

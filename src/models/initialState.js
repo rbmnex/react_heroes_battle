@@ -30,5 +30,7 @@ export const createInitialGameState = () => ({
   heroAttackCounts: {},
   heroSupportCounts: {},
   isFirstAttackOfHero: false,
-  statusEffectLog: []
+  statusEffectLog: [],
+  triggeredSkill: null,
+  skillIndicatorVisible: false
 });

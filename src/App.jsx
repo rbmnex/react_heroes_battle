@@ -178,6 +178,8 @@ function App() {
       setWaitingForReaction,
       setIsFirstAttackOfHero,
       setHeroAttackCounts,
+      setTriggeredSkill,
+      setSkillIndicatorVisible,
       addLog
     );
   };

@@ -1,4 +1,5 @@
 import React from 'react';
+import { getSkillTooltipText } from '../utils/skillTooltip';
 
 const Battlefield = ({ heroes, currentTurn, activeHeroIndex, selectingTarget, selectingSupportTarget, waitingForReaction, pendingAttack, gameStarted, setActiveHeroIndex, selectTarget, addLog }) => {
   return (
@@ -13,7 +14,7 @@ const Battlefield = ({ heroes, currentTurn, activeHeroIndex, selectingTarget, se
               onClick={() => {
                 if (selectingSupportTarget && currentTurn === 'player1') {
                   selectTarget(hero.id);
-                } else if (selectingTarget) {
+                } else if (selectingTarget && currentTurn === 'player2') {
                   selectTarget(hero.id);
                 } else if (gameStarted && currentTurn === 'player1' && !waitingForReaction && !selectingTarget && !selectingSupportTarget) {
                   setActiveHeroIndex(idx);
@@ -23,7 +24,7 @@ const Battlefield = ({ heroes, currentTurn, activeHeroIndex, selectingTarget, se
               className={`bg-gray-800 p-4 rounded-lg border-4 transition-all cursor-pointer flex flex-col items-center gap-3 ${hero.defeated ? 'opacity-40 border-gray-700' :
                 !gameStarted ? 'border-gray-500' :
                 currentTurn === 'player1' && idx === activeHeroIndex ? 'border-blue-500 shadow-lg' :
-                  (selectingTarget || selectingSupportTarget) && currentTurn === 'player1' ? 'border-green-500 hover:border-green-400' :
+                  ((selectingSupportTarget && currentTurn === 'player1') || (selectingTarget && currentTurn === 'player2')) ? 'border-green-500 hover:border-green-400' :
                     currentTurn === 'player1' && !waitingForReaction ? 'border-blue-400 hover:border-blue-300' :
                       'border-gray-600'
                 }`}
@@ -31,6 +32,14 @@ const Battlefield = ({ heroes, currentTurn, activeHeroIndex, selectingTarget, se
               <div className="text-center">
                 <h3 className="text-lg font-bold">{hero.name}</h3>
                 <p className="text-sm text-gray-400">{hero.job.icon} {hero.job.name}</p>
+                {hero.heroSkill && (
+                  <p 
+                    className="text-xs text-purple-300 mt-1 cursor-help hover:text-purple-200 transition-colors"
+                    title={getSkillTooltipText(hero.heroSkill)}
+                  >
+                    {hero.heroSkill.icon} {hero.heroSkill.name}
+                  </p>
+                )}
                 {hero.defeated && <span className="text-2xl ml-2">☠️</span>}
               </div>
               
@@ -86,7 +95,7 @@ const Battlefield = ({ heroes, currentTurn, activeHeroIndex, selectingTarget, se
               onClick={() => {
                 if (selectingSupportTarget && currentTurn === 'player2') {
                   selectTarget(hero.id);
-                } else if (selectingTarget) {
+                } else if (selectingTarget && currentTurn === 'player1') {
                   selectTarget(hero.id);
                 } else if (gameStarted && currentTurn === 'player2' && !waitingForReaction && !selectingTarget && !selectingSupportTarget) {
                   setActiveHeroIndex(idx);
@@ -96,7 +105,7 @@ const Battlefield = ({ heroes, currentTurn, activeHeroIndex, selectingTarget, se
               className={`bg-gray-800 p-4 rounded-lg border-4 transition-all cursor-pointer flex flex-col items-center gap-3 ${hero.defeated ? 'opacity-40 border-gray-700' :
                 !gameStarted ? 'border-gray-500' :
                 currentTurn === 'player2' && idx === activeHeroIndex ? 'border-red-500 shadow-lg' :
-                  (selectingTarget || selectingSupportTarget) && currentTurn === 'player2' ? 'border-green-500 hover:border-green-400' :
+                  ((selectingSupportTarget && currentTurn === 'player2') || (selectingTarget && currentTurn === 'player1')) ? 'border-green-500 hover:border-green-400' :
                     currentTurn === 'player2' && !waitingForReaction ? 'border-red-400 hover:border-red-300' :
                       'border-gray-600'
                 }`}
@@ -104,6 +113,14 @@ const Battlefield = ({ heroes, currentTurn, activeHeroIndex, selectingTarget, se
               <div className="text-center">
                 <h3 className="text-lg font-bold">{hero.name}</h3>
                 <p className="text-sm text-gray-400">{hero.job.icon} {hero.job.name}</p>
+                {hero.heroSkill && (
+                  <p 
+                    className="text-xs text-purple-300 mt-1 cursor-help hover:text-purple-200 transition-colors"
+                    title={getSkillTooltipText(hero.heroSkill)}
+                  >
+                    {hero.heroSkill.icon} {hero.heroSkill.name}
+                  </p>
+                )}
                 {hero.defeated && <span className="text-2xl ml-2">☠️</span>}
               </div>
               

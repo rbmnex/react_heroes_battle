@@ -30,7 +30,7 @@ export const resolveAttackController = (
 ) => {
   if (!pendingAttack) return;
 
-  const { card, attacker, attackerHero, defender, defenderHero, isFeint } = pendingAttack;
+  const { card, attacker, attackerHero, defender, defenderHero, isFeint, ignoresBlock, ignoreShield, skillTriggered, skillName, skillIcon } = pendingAttack;
   let defenderDamage = card.damage;
   let attackerDamage = 0;
   let shieldAbsorbed = 0;
@@ -66,8 +66,12 @@ export const resolveAttackController = (
         attackerDamage = Math.floor(card.damage * 0.5);
         addLog(`🔮 Deflect! Dmg: ${defenderDamage}, Reflect: ${attackerDamage}`);
       } else if (defenseCard.defenseType === 'block') {
-        defenderDamage = Math.max(0, card.damage - defenseCard.defense);
-        addLog(`🛡️ Blocked to ${defenderDamage}!`);
+        if (ignoresBlock) {
+          addLog(`💥 ${skillName} penetrates the defense!`);
+        } else {
+          defenderDamage = Math.max(0, card.damage - defenseCard.defense);
+          addLog(`🛡️ Blocked to ${defenderDamage}!`);
+        }
       } else {
         addLog(`⚠️ ${defenseCard.name} doesn't work!`);
       }
@@ -82,10 +86,12 @@ export const resolveAttackController = (
       if (h.id === defenderHero.id && defender === 'player1') {
         let damageAfterShield = defenderDamage;
         let newShield = h.shield;
-        if (h.shield > 0) {
+        if (h.shield > 0 && !ignoreShield) {
           shieldAbsorbed = Math.min(h.shield, defenderDamage);
           damageAfterShield = defenderDamage - shieldAbsorbed;
           newShield = h.shield - shieldAbsorbed;
+        } else if (ignoreShield && h.shield > 0) {
+          addLog(`⚡ ${skillName} bypasses shield!`);
         }
         const newHp = Math.max(0, h.hp - damageAfterShield);
         return { ...h, hp: newHp, shield: newShield, defeated: newHp === 0 };
@@ -107,10 +113,12 @@ export const resolveAttackController = (
       if (h.id === defenderHero.id && defender === 'player2') {
         let damageAfterShield = defenderDamage;
         let newShield = h.shield;
-        if (h.shield > 0) {
+        if (h.shield > 0 && !ignoreShield) {
           shieldAbsorbed = Math.min(h.shield, defenderDamage);
           damageAfterShield = defenderDamage - shieldAbsorbed;
           newShield = h.shield - shieldAbsorbed;
+        } else if (ignoreShield && h.shield > 0) {
+          addLog(`⚡ ${skillName} bypasses shield!`);
         }
         const newHp = Math.max(0, h.hp - damageAfterShield);
         return { ...h, hp: newHp, shield: newShield, defeated: newHp === 0 };
