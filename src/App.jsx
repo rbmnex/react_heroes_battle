@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { STATUS_EFFECTS } from './models/statusEffects';
 import { CARD_TYPES } from './models/cardTypes';
 import { JOB_CLASSES } from './models/jobClasses';
+import { getSkillsForJobClass } from './models/heroSkills';
 import { createInitialHeroes } from './models/initialState';
 // Utilities
 import { checkVictory, canHeroUseCard, processStatusEffects } from './utils/gameLogic';
@@ -22,6 +23,7 @@ import Controls from './components/Controls';
 import GameOverModal from './components/GameOverModal';
 import StatusBanners from './components/StatusBanners';
 import SkillIndicator from './components/Skillindicator';
+import { SkillIndicatorWithTooltip } from './components/Skilltooltip';
 
 function App() {
   // State Management - using plain useState hooks organized by feature
@@ -62,6 +64,7 @@ function App() {
   // Skill System State
   const [triggeredSkill, setTriggeredSkill] = useState(null);
   const [skillIndicatorVisible, setSkillIndicatorVisible] = useState(false);
+  const [skillVisible, setSkillVisible] = useState(false);
 
   // Helper Functions
   const addLog = (message) => setGameLog(prev => [...prev, message]);
@@ -365,9 +368,14 @@ function App() {
 
         <GameOverModal gameOver={gameOver} winner={winner} resetGame={resetGame} />
         
-        <SkillIndicator 
+        {/* <SkillIndicator 
           skill={triggeredSkill} 
           visible={skillIndicatorVisible} 
+        /> */}
+        <SkillIndicatorWithTooltip 
+          skill={triggeredSkill}
+          visible={skillVisible}
+          onClose={() => setSkillVisible(false)}
         />
 
         <Battlefield 
