@@ -21,6 +21,7 @@ import BattleLog from './components/BattleLog';
 import Controls from './components/Controls';
 import GameOverModal from './components/GameOverModal';
 import StatusBanners from './components/StatusBanners';
+import SkillIndicator from './components/Skillindicator';
 
 function App() {
   // State Management - using plain useState hooks organized by feature
@@ -57,6 +58,10 @@ function App() {
   const [selectingSupportTarget, setSelectingSupportTarget] = useState(false);
   const [pendingSupportCard, setPendingSupportCard] = useState(null);
   const [heroSupportCounts, setHeroSupportCounts] = useState({});
+  
+  // Skill System State
+  const [triggeredSkill, setTriggeredSkill] = useState(null);
+  const [skillIndicatorVisible, setSkillIndicatorVisible] = useState(false);
 
   // Helper Functions
   const addLog = (message) => setGameLog(prev => [...prev, message]);
@@ -105,6 +110,8 @@ function App() {
     setSelectingSupportTarget(false);
     setPendingSupportCard(null);
     setHeroSupportCounts({});
+    setTriggeredSkill(null);
+    setSkillIndicatorVisible(false);
   };
 
   // CARD MANAGEMENT via controllers
@@ -357,6 +364,11 @@ function App() {
         </div>
 
         <GameOverModal gameOver={gameOver} winner={winner} resetGame={resetGame} />
+        
+        <SkillIndicator 
+          skill={triggeredSkill} 
+          visible={skillIndicatorVisible} 
+        />
 
         <Battlefield 
           heroes={heroes}
