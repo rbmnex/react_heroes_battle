@@ -1,4 +1,5 @@
 // Support Card Controller - Handle support card targeting and effects
+import { checkSkillOnSupport, applySupportSkillEffects } from './skillController';
 
 /**
  * Apply support card effects (heal, cleanse, shield) to a target teammate
@@ -17,26 +18,30 @@ export const selectSupportTargetController = (
   setPlayer1Hand,
   player2Hand,
   setPlayer2Hand,
-  addLog
+  addLog,
+  supportHistory,
+  setSupportHistory,
+  setTriggeredSkill,
+  setSkillIndicatorVisible
 ) => {
   const supportCard = pendingSupportCard;
   const team = heroes[currentTurn];
   const targetHero = team.find(h => h.id === heroId);
   const casterHero = heroes[currentTurn][activeHeroIndex];
-  
+
   if (!targetHero || targetHero.defeated) {
-    addLog(`⚠️ Invalid target!`);
+    addLog(`Invalid target!`);
     return;
   }
-  
+
   // Apply the support effect
   if (supportCard.effect === 'heal') {
     setHeroes(prev => ({
       ...prev,
       [currentTurn]: prev[currentTurn].map(h =>
-        h.id === targetHero.id ? { 
-          ...h, 
-          hp: Math.min(h.maxHp, h.hp + supportCard.heal) 
+        h.id === targetHero.id ? {
+          ...h,
+          hp: Math.min(h.maxHp, h.hp + supportCard.heal)
         } : h
       )
     }));
@@ -53,29 +58,67 @@ export const selectSupportTargetController = (
     setHeroes(prev => ({
       ...prev,
       [currentTurn]: prev[currentTurn].map(h =>
-        h.id === targetHero.id ? { 
-          ...h, 
-          shield: h.shield + supportCard.shieldValue 
+        h.id === targetHero.id ? {
+          ...h,
+          shield: h.shield + supportCard.shieldValue
         } : h
       )
     }));
     addLog(`🛡️ ${targetHero.name} gains ${supportCard.shieldValue} shield! (Total: ${targetHero.shield + supportCard.shieldValue})`);
   }
-  
+
   // Remove support card from hand
   if (currentTurn === 'player1') {
     setPlayer1Hand(prev => prev.filter(c => c.id !== supportCard.id));
   } else {
     setPlayer2Hand(prev => prev.filter(c => c.id !== supportCard.id));
   }
-  
+
   // Track support card usage
   setHeroSupportCounts(prev => ({
     ...prev,
     [casterHero.id]: (prev[casterHero.id] || 0) + 1
   }));
-  
+
+  // Update support history for skill detection
+  const newHistory = [...(supportHistory || []), { cardKey: getCardTypeKeyByName(supportCard.name), targetHeroId: heroId }];
+  if (setSupportHistory) {
+    setSupportHistory(newHistory);
+  }
+
+  // Check for support skill trigger
+  const triggeredSkill = checkSkillOnSupport(
+    casterHero,
+    supportCard,
+    supportHistory || [],
+    heroId,
+    heroes,
+    currentTurn
+  );
+
+  if (triggeredSkill) {
+    addLog(`--- ${triggeredSkill.icon} SKILL ACTIVATED: ${triggeredSkill.name}! ---`);
+    applySupportSkillEffects(triggeredSkill, heroes, currentTurn, setHeroes, addLog);
+    if (setTriggeredSkill) {
+      setTriggeredSkill(triggeredSkill);
+      setSkillIndicatorVisible(true);
+      setTimeout(() => setSkillIndicatorVisible(false), 2500);
+    }
+  }
+
   // Exit support targeting mode
   setSelectingSupportTarget(false);
   setPendingSupportCard(null);
+};
+
+/**
+ * Helper: get CARD_TYPES key from display name
+ */
+const getCardTypeKeyByName = (name) => {
+  const map = {
+    'Heal': 'HEAL',
+    'Cure': 'CURE',
+    'Shield': 'SHIELD'
+  };
+  return map[name] || name;
 };

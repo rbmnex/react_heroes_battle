@@ -30,10 +30,18 @@ export const resolveAttackController = (
 ) => {
   if (!pendingAttack) return;
 
-  const { card, attacker, attackerHero, defender, defenderHero, isFeint, ignoresBlock, ignoreShield, skillTriggered, skillName, skillIcon } = pendingAttack;
+  const {
+    card, attacker, attackerHero, defender, defenderHero,
+    isFeint, ignoresBlock, ignoreShield, unavoidable,
+    skillTriggered, skillName, skillIcon,
+    statusDurationBonus, statusDamageBonus, splashDamage, selfDamage,
+    multiHit, hitsPerAttack, damagePerHit
+  } = pendingAttack;
+
   let defenderDamage = card.damage;
   let attackerDamage = 0;
   let shieldAbsorbed = 0;
+  let defenseNullified = false; // track if defense was bypassed
 
   // Remove defense card if played
   if (defenseCard) {
@@ -43,15 +51,20 @@ export const resolveAttackController = (
       setPlayer2Hand(prev => prev.filter(c => c.id !== defenseCard.id));
     }
 
+    // Check if attack is unavoidable (from Feint buff OR skill like Headshot)
+    const isUnavoidable = isFeint || unavoidable;
+
     // Resolve defense interactions
-    if (isFeint) {
+    if (isUnavoidable) {
+      // Unavoidable attacks: Counter/Deflect still work (reflect), but Evade/Block don't
       if ((defenseCard.defenseType === 'counter' && card.attackType === 'physical') ||
         (defenseCard.defenseType === 'deflect' && card.attackType === 'magic')) {
         defenderDamage = Math.floor(card.damage * 0.5);
         attackerDamage = Math.floor(card.damage * 0.5);
         addLog(`${defenseCard.defenseType === 'counter' ? '⚡' : '🔮'} ${defenseCard.name}! Dmg: ${defenderDamage}, Reflect: ${attackerDamage}`);
       } else {
-        addLog(`💫 Feint! ${defenseCard.name} has no effect!`);
+        addLog(`💫 ${isFeint ? 'Feint' : skillName || 'Skill'}! ${defenseCard.name} has no effect!`);
+        defenseNullified = true;
       }
     } else {
       if (defenseCard.defenseType === 'evade') {
@@ -67,13 +80,13 @@ export const resolveAttackController = (
         addLog(`🔮 Deflect! Dmg: ${defenderDamage}, Reflect: ${attackerDamage}`);
       } else if (defenseCard.defenseType === 'block') {
         if (ignoresBlock) {
-          addLog(`💥 ${skillName} penetrates the defense!`);
+          addLog(`💥 ${skillName || 'Skill'} penetrates the defense!`);
         } else {
           defenderDamage = Math.max(0, card.damage - defenseCard.defense);
           addLog(`🛡️ Blocked to ${defenderDamage}!`);
         }
       } else {
-        addLog(`⚠️ ${defenseCard.name} doesn't work!`);
+        addLog(`${defenseCard.name} doesn't work against this attack type!`);
       }
     }
   } else {
@@ -90,8 +103,9 @@ export const resolveAttackController = (
           shieldAbsorbed = Math.min(h.shield, defenderDamage);
           damageAfterShield = defenderDamage - shieldAbsorbed;
           newShield = h.shield - shieldAbsorbed;
+          if (shieldAbsorbed > 0) addLog(`🛡️ Shield absorbs ${shieldAbsorbed} damage!`);
         } else if (ignoreShield && h.shield > 0) {
-          addLog(`⚡ ${skillName} bypasses shield!`);
+          addLog(`⚡ ${skillName || 'Skill'} bypasses shield!`);
         }
         const newHp = Math.max(0, h.hp - damageAfterShield);
         return { ...h, hp: newHp, shield: newShield, defeated: newHp === 0 };
@@ -100,9 +114,9 @@ export const resolveAttackController = (
         let damageAfterShield = attackerDamage;
         let newShield = h.shield;
         if (h.shield > 0) {
-          const shieldAbsorbed = Math.min(h.shield, attackerDamage);
-          damageAfterShield = attackerDamage - shieldAbsorbed;
-          newShield = h.shield - shieldAbsorbed;
+          const absorbed = Math.min(h.shield, attackerDamage);
+          damageAfterShield = attackerDamage - absorbed;
+          newShield = h.shield - absorbed;
         }
         const newHp = Math.max(0, h.hp - damageAfterShield);
         return { ...h, hp: newHp, shield: newShield, defeated: newHp === 0 };
@@ -117,8 +131,9 @@ export const resolveAttackController = (
           shieldAbsorbed = Math.min(h.shield, defenderDamage);
           damageAfterShield = defenderDamage - shieldAbsorbed;
           newShield = h.shield - shieldAbsorbed;
+          if (shieldAbsorbed > 0) addLog(`🛡️ Shield absorbs ${shieldAbsorbed} damage!`);
         } else if (ignoreShield && h.shield > 0) {
-          addLog(`⚡ ${skillName} bypasses shield!`);
+          addLog(`⚡ ${skillName || 'Skill'} bypasses shield!`);
         }
         const newHp = Math.max(0, h.hp - damageAfterShield);
         return { ...h, hp: newHp, shield: newShield, defeated: newHp === 0 };
@@ -127,9 +142,9 @@ export const resolveAttackController = (
         let damageAfterShield = attackerDamage;
         let newShield = h.shield;
         if (h.shield > 0) {
-          const shieldAbsorbed = Math.min(h.shield, attackerDamage);
-          damageAfterShield = attackerDamage - shieldAbsorbed;
-          newShield = h.shield - shieldAbsorbed;
+          const absorbed = Math.min(h.shield, attackerDamage);
+          damageAfterShield = attackerDamage - absorbed;
+          newShield = h.shield - absorbed;
         }
         const newHp = Math.max(0, h.hp - damageAfterShield);
         return { ...h, hp: newHp, shield: newShield, defeated: newHp === 0 };
@@ -138,18 +153,48 @@ export const resolveAttackController = (
     })
   };
 
+  // Apply splash damage to adjacent heroes (from Elemental Mastery)
+  if (splashDamage > 0 && defenderDamage > 0) {
+    const defenderTeam = newHeroes[defender];
+    const defenderIdx = defenderTeam.findIndex(h => h.id === defenderHero.id);
+    const adjacentIndices = [defenderIdx - 1, defenderIdx + 1].filter(i => i >= 0 && i < defenderTeam.length);
+
+    adjacentIndices.forEach(idx => {
+      const adjacentHero = defenderTeam[idx];
+      if (adjacentHero && !adjacentHero.defeated) {
+        const newHp = Math.max(0, adjacentHero.hp - splashDamage);
+        newHeroes[defender] = newHeroes[defender].map(h =>
+          h.id === adjacentHero.id ? { ...h, hp: newHp, defeated: newHp === 0 } : h
+        );
+        addLog(`💫 ${adjacentHero.name} takes ${splashDamage} splash damage! (HP: ${newHp})`);
+      }
+    });
+  }
+
+  // Apply self-damage (from Desperate Strike)
+  if (selfDamage > 0) {
+    newHeroes[attacker] = newHeroes[attacker].map(h => {
+      if (h.id === attackerHero.id) {
+        const newHp = Math.max(0, h.hp - selfDamage);
+        addLog(`💀 ${attackerHero.name} takes ${selfDamage} self-damage! (HP: ${newHp})`);
+        return { ...h, hp: newHp, defeated: newHp === 0 };
+      }
+      return h;
+    });
+  }
+
   // Apply status effects
   let statusToApply = card.statusEffect;
   if (!statusToApply && activeBuff && activeBuff.buffType === 'elementalMagic' && card.attackType === 'magic') {
     statusToApply = activeBuff.statusEffect;
   }
-  
+
   if (statusToApply) {
     let statusTargetHero = defenderHero;
     let statusTargetPlayer = defender;
     let isReflected = false;
 
-    if (defenseCard && defenseCard.defenseType === 'deflect') {
+    if (defenseCard && defenseCard.defenseType === 'deflect' && card.attackType === 'magic') {
       statusTargetHero = attackerHero;
       statusTargetPlayer = attacker;
       isReflected = true;
@@ -157,12 +202,26 @@ export const resolveAttackController = (
       statusToApply = null;
     }
 
-    if (statusToApply) {
+    if (statusToApply && STATUS_EFFECTS[statusToApply]) {
+      const baseDuration = STATUS_EFFECTS[statusToApply].duration;
+      const bonusDuration = statusDurationBonus || 0;
+      const bonusDotDamage = statusDamageBonus || 0;
+
       const statusEffect = {
         ...STATUS_EFFECTS[statusToApply],
         type: statusToApply,
-        turnsRemaining: STATUS_EFFECTS[statusToApply].duration
+        turnsRemaining: baseDuration + bonusDuration
       };
+
+      // Apply DOT bonus from Elemental Mastery
+      if (bonusDotDamage > 0) {
+        if (statusEffect.damagePerTurn) {
+          statusEffect.damagePerTurn += bonusDotDamage;
+        }
+        if (statusEffect.damageOnAction) {
+          statusEffect.damageOnAction += bonusDotDamage;
+        }
+      }
 
       newHeroes[statusTargetPlayer] = newHeroes[statusTargetPlayer].map(h =>
         h.id === statusTargetHero.id ? {
@@ -171,10 +230,12 @@ export const resolveAttackController = (
         } : h
       );
 
+      const durationInfo = bonusDuration > 0 ? ` (${statusEffect.turnsRemaining} turns!)` : '';
+      const dotInfo = bonusDotDamage > 0 ? ` [Enhanced: +${bonusDotDamage} dmg/turn]` : '';
       if (isReflected) {
-        addLog(`${STATUS_EFFECTS[statusToApply].icon} ${statusTargetHero.name} is ${statusToApply}! [REFLECTED]`);
+        addLog(`${STATUS_EFFECTS[statusToApply].icon} ${statusTargetHero.name} is ${statusToApply}! [REFLECTED]${durationInfo}${dotInfo}`);
       } else {
-        addLog(`${STATUS_EFFECTS[statusToApply].icon} ${statusTargetHero.name} is ${statusToApply}!`);
+        addLog(`${STATUS_EFFECTS[statusToApply].icon} ${statusTargetHero.name} is ${statusToApply}!${durationInfo}${dotInfo}`);
       }
     }
   }
@@ -191,7 +252,7 @@ export const resolveAttackController = (
     addLog(`💢 ${attackerHero.name}: ${attackerDamage} reflected (HP: ${updatedAttacker.hp}/${updatedAttacker.maxHp})${updatedAttacker.defeated ? ' ☠️ DEFEATED!' : ''}`);
   }
 
-  // Handle charge buff consequences
+  // Charge buff always stuns the attacker next turn (recharge cost)
   if (activeBuff && activeBuff.buffType === 'charge') {
     const stunEffect = {
       ...STATUS_EFFECTS.STUN,
@@ -205,9 +266,9 @@ export const resolveAttackController = (
         statusEffects: [...h.statusEffects.filter(e => e.type !== 'STUN'), stunEffect]
       } : h
     );
-    
+
     setHeroes(newHeroes);
-    addLog(`💫 ${attackerHero.name} need to recharge!`);
+    addLog(`💫 ${attackerHero.name} is stunned from Charge recoil! (skips next turn)`);
   }
 
   setWaitingForReaction(false);

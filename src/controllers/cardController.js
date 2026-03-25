@@ -1,6 +1,6 @@
 // Card Management and Routing Controller
 import { generateCard } from '../utils/cardGeneration';
-import { checkBuffAttackSkill, applySkillToAttack } from './skillController';
+import { checkSkillOnAttack, applySkillToAttack } from './skillController';
 
 /**
  * Play an attack card - handles target selection or direct attack with target
@@ -28,7 +28,7 @@ export const playAttackController = (
   addLog
 ) => {
   const attacker = heroes[currentTurn][activeHeroIndex];
-  
+
   // Check if this hero can use this attack card
   const canUseAttack = (hero, attackCard) => {
     const jobName = hero.job.name;
@@ -40,13 +40,13 @@ export const playAttackController = (
   };
 
   if (!canUseAttack(attacker, card)) {
-    addLog(`⚠️ ${attacker.name} (${attacker.job.name}) cannot use ${card.name}!`);
+    addLog(`${attacker.name} (${attacker.job.name}) cannot use ${card.name}!`);
     return;
   }
 
   // If elemental magic buff is active, check that attack is magic type
   if (activeBuff && activeBuff.buffType === 'elementalMagic' && card.attackType !== 'magic') {
-    addLog(`⚠️ ${activeBuff.name} only combos with magic attacks!`);
+    addLog(`${activeBuff.name} only combos with magic attacks!`);
     return;
   }
 
@@ -56,20 +56,20 @@ export const playAttackController = (
   // If no target selected yet, enter target selection mode
   if (!targetHeroId) {
     if (heroAttackCount >= maxAttacks) {
-      addLog(`⚠️ ${attacker.name} has already attacked ${maxAttacks} time${maxAttacks > 1 ? 's' : ''} this turn!`);
+      addLog(`${attacker.name} has already attacked ${maxAttacks} time${maxAttacks > 1 ? 's' : ''} this turn!`);
       return;
     }
-    
+
     setPendingAttackCard(card);
     setSelectingTarget(true);
-    setIsFirstAttackOfHero(true);
+    setIsFirstAttackOfHero(heroAttackCount === 0);
     addLog(`Select target for ${card.name}...`);
     return;
   }
 
   // Target selected - validate and execute
   if (heroAttackCount >= maxAttacks) {
-    addLog(`⚠️ ${attacker.name} has already attacked ${maxAttacks} time${maxAttacks > 1 ? 's' : ''} this turn!`);
+    addLog(`${attacker.name} has already attacked ${maxAttacks} time${maxAttacks > 1 ? 's' : ''} this turn!`);
     setSelectingTarget(false);
     return;
   }
@@ -78,11 +78,12 @@ export const playAttackController = (
   const targetHero = heroes[opponent].find(h => h.id === targetHeroId);
 
   if (!targetHero || targetHero.defeated) {
-    addLog(`⚠️ Invalid target!`);
+    addLog(`Invalid target!`);
     return;
   }
 
   // Remove card from hand
+  const currentHand = currentTurn === 'player1' ? player1Hand : player2Hand;
   if (currentTurn === 'player1') {
     setPlayer1Hand(prev => prev.filter(c => c.id !== card.id));
   } else {
@@ -91,7 +92,6 @@ export const playAttackController = (
 
   let finalDamage = card.damage;
   let isFeint = false;
-  let triggeredSkill = null;
 
   if (activeBuff) {
     finalDamage += activeBuff.damageModifier;
@@ -100,13 +100,13 @@ export const playAttackController = (
     }
   }
 
-  // Check for skill trigger (buff + attack combinations)
-  const isFirstAttack = (heroAttackCounts[attacker.id] || 0) === 0;
-  triggeredSkill = checkBuffAttackSkill(
+  // Check for skill trigger using unified detection
+  const triggeredSkill = checkSkillOnAttack(
     attacker,
     activeBuff,
     card,
-    isFirstAttack,
+    heroAttackCounts,
+    currentHand,
     heroes,
     currentTurn
   );
@@ -119,11 +119,19 @@ export const playAttackController = (
     defender: opponent,
     defenderHero: targetHero,
     isFeint,
+    unavoidable: false,
     ignoresBlock: false,
     ignoreShield: false,
     skillTriggered: null,
     skillName: null,
-    skillIcon: null
+    skillIcon: null,
+    statusDurationBonus: 0,
+    statusDamageBonus: 0,
+    splashDamage: 0,
+    selfDamage: 0,
+    multiHit: false,
+    hitsPerAttack: 1,
+    damagePerHit: 0
   };
 
   // Apply skill effects if triggered
@@ -132,20 +140,24 @@ export const playAttackController = (
     // Show skill indicator
     setTriggeredSkill(triggeredSkill);
     setSkillIndicatorVisible(true);
-    // Hide indicator after 2 seconds
+    // Hide indicator after 2.5 seconds
     setTimeout(() => {
       setSkillIndicatorVisible(false);
-    }, 2000);
+    }, 2500);
   }
 
   setPendingAttack(pendingAttackObj);
-
   setWaitingForReaction(true);
   setSelectingTarget(false);
   setPendingAttackCard(null);
 
+  // Log with final (skill-modified) damage
+  const displayDamage = pendingAttackObj.card.damage;
   const icon = card.attackType === 'magic' ? '🔮' : '⚔️';
-  addLog(`${attacker.name} attacks ${targetHero.name} with ${card.name} ${icon} (${finalDamage} dmg)${isFeint ? ' [UNAVOIDABLE]' : ''}!`);
+  const skillTag = pendingAttackObj.skillTriggered ? ` [${pendingAttackObj.skillName}]` : '';
+  const feintTag = isFeint ? ' [UNAVOIDABLE]' : '';
+  addLog(`${attacker.name} attacks ${targetHero.name} with ${card.name} ${icon} (${displayDamage} dmg)${skillTag}${feintTag}!`);
+
   setHeroAttackCounts(prev => ({
     ...prev,
     [attacker.id]: (prev[attacker.id] || 0) + 1
@@ -170,20 +182,20 @@ export const drawOneAndDiscardController = (
   addLog
 ) => {
   if (drawUsedThisTurn) return;
-  
+
   const teamHeroes = heroes[currentTurn];
   const activeHeroes = teamHeroes.filter(h => !h.defeated);
   const newCard = generateCard(activeHeroes);
-  
+
   setDrawnCard(newCard);
   setDrawUsedThisTurn(true);
-  
+
   if (currentTurn === 'player1') {
     setPlayer1Hand(prev => [...prev, newCard]);
   } else {
     setPlayer2Hand(prev => [...prev, newCard]);
   }
-  
+
   setWaitingForDiscard(true);
   addLog(`${currentTurn === 'player1' ? 'Player 1' : 'Player 2'} draws 1 card. Select to discard.`);
 };
@@ -204,13 +216,13 @@ export const discardCardController = (
   addLog
 ) => {
   if (!waitingForDiscard) return;
-  
+
   if (currentTurn === 'player1') {
     setPlayer1Hand(prev => prev.filter(c => c.id !== card.id));
   } else {
     setPlayer2Hand(prev => prev.filter(c => c.id !== card.id));
   }
-  
+
   addLog(`${currentTurn === 'player1' ? 'Player 1' : 'Player 2'} discards ${card.name}.`);
   setDrawnCard(null);
   setWaitingForDiscard(false);

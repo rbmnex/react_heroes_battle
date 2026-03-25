@@ -5,6 +5,7 @@ import { CARD_TYPES } from './models/cardTypes';
 import { JOB_CLASSES } from './models/jobClasses';
 import { getSkillsForJobClass } from './models/heroSkills';
 import { createInitialHeroes } from './models/initialState';
+import { createHeroesFromSelection } from './models/heroesModel';
 // Utilities
 import { checkVictory, canHeroUseCard, processStatusEffects } from './utils/gameLogic';
 import { drawCardsToFive, generateCard } from './utils/cardGeneration';
@@ -15,6 +16,7 @@ import { playAttackController, drawOneAndDiscardController, discardCardControlle
 import { resolveAttackController } from './controllers/damageController';
 import { selectSupportTargetController } from './controllers/supportController';
 import { confirmEndTurnController } from './controllers/turnController';
+import { checkHandForPotentialSkills } from './controllers/skillController';
 // Components
 import Battlefield from './components/Battlefield';
 import Hand from './components/Hand';
@@ -24,9 +26,15 @@ import GameOverModal from './components/GameOverModal';
 import StatusBanners from './components/StatusBanners';
 import SkillIndicator from './components/Skillindicator';
 import { SkillIndicatorWithTooltip } from './components/Skilltooltip';
+import HeroSelection from './components/HeroSelection';
 
 function App() {
   // State Management - using plain useState hooks organized by feature
+  const [gamePhase, setGamePhase] = useState('selection'); // 'selection' | 'playing'
+  const [player1Picks, setPlayer1Picks] = useState([]);
+  const [player2Picks, setPlayer2Picks] = useState([]);
+  const [selectionTurn, setSelectionTurn] = useState('player1');
+
   const [heroes, setHeroes] = useState(createInitialHeroes());
   const [currentTurn, setCurrentTurn] = useState('player1');
   const [activeHeroIndex, setActiveHeroIndex] = useState(0);
@@ -60,11 +68,11 @@ function App() {
   const [selectingSupportTarget, setSelectingSupportTarget] = useState(false);
   const [pendingSupportCard, setPendingSupportCard] = useState(null);
   const [heroSupportCounts, setHeroSupportCounts] = useState({});
+  const [supportHistory, setSupportHistory] = useState([]);
   
   // Skill System State
   const [triggeredSkill, setTriggeredSkill] = useState(null);
   const [skillIndicatorVisible, setSkillIndicatorVisible] = useState(false);
-  const [skillVisible, setSkillVisible] = useState(false);
 
   // Helper Functions
   const addLog = (message) => setGameLog(prev => [...prev, message]);
@@ -74,20 +82,38 @@ function App() {
   };
   const getCurrentPlayerHand = () => currentTurn === 'player1' ? player1Hand : player2Hand;
 
+  // Hero Selection
+  const handlePickHero = (hero) => {
+    if (selectionTurn === 'player1') {
+      const newPicks = [...player1Picks, hero];
+      setPlayer1Picks(newPicks);
+      setSelectionTurn('player2');
+    } else {
+      const newPicks = [...player2Picks, hero];
+      setPlayer2Picks(newPicks);
+      setSelectionTurn('player1');
+    }
+  };
+
   // Game Initialization
   const startGame = () => {
-    const initialHeroes = createInitialHeroes();
-    const p1Cards = drawCardsToFive([], 'player1', initialHeroes, addLog);
-    const p2Cards = drawCardsToFive([], 'player2', initialHeroes, addLog);
-    setHeroes(initialHeroes);
+    const selectedHeroes = createHeroesFromSelection(player1Picks, player2Picks);
+    const p1Cards = drawCardsToFive([], 'player1', selectedHeroes, addLog);
+    const p2Cards = drawCardsToFive([], 'player2', selectedHeroes, addLog);
+    setHeroes(selectedHeroes);
     setPlayer1Hand(p1Cards);
     setPlayer2Hand(p2Cards);
     setGameStarted(true);
+    setGamePhase('playing');
     addLog('Game started! 3v3 Battle begins!');
     addLog('--- Player 1\'s turn ---');
   };
 
   const resetGame = () => {
+    setGamePhase('selection');
+    setPlayer1Picks([]);
+    setPlayer2Picks([]);
+    setSelectionTurn('player1');
     setHeroes(createInitialHeroes());
     setCurrentTurn('player1');
     setActiveHeroIndex(0);
@@ -113,6 +139,7 @@ function App() {
     setSelectingSupportTarget(false);
     setPendingSupportCard(null);
     setHeroSupportCounts({});
+    setSupportHistory([]);
     setTriggeredSkill(null);
     setSkillIndicatorVisible(false);
   };
@@ -240,7 +267,11 @@ function App() {
         setPlayer1Hand,
         player2Hand,
         setPlayer2Hand,
-        addLog
+        addLog,
+        supportHistory,
+        setSupportHistory,
+        setTriggeredSkill,
+        setSkillIndicatorVisible
       );
       return;
     }
@@ -270,6 +301,7 @@ function App() {
       setHeroAttackCounts,
       setHeroSupportCounts,
       setIsFirstAttackOfHero,
+      setSupportHistory,
       setGameOver,
       setWinner,
       addLog
@@ -357,6 +389,44 @@ function App() {
               false;
   };
 
+  // Compute map of card name → skill for cards that can trigger skills
+  const potentialSkillsByCardName = {};
+  if (gameStarted && !waitingForReaction && !waitingForDiscard) {
+    const activeHero = getActiveHero();
+    if (activeHero) {
+      const hand = getCurrentPlayerHand();
+      const potentialSkills = checkHandForPotentialSkills(activeHero, hand, activeBuff);
+      potentialSkills.forEach(skill => {
+        const trigger = skill.trigger;
+        if (trigger.type === 'buff+attack' || trigger.type === 'elemental+heavy' || trigger.type === 'buff+multi-attack') {
+          const cardName = CARD_TYPES[trigger.requiredAttack]?.name;
+          if (cardName) potentialSkillsByCardName[cardName] = skill;
+        } else if (trigger.type === 'multi-card' || trigger.type === 'multi-magic') {
+          const cardName = CARD_TYPES[trigger.requiredCard]?.name;
+          if (cardName) potentialSkillsByCardName[cardName] = skill;
+        } else if (trigger.type === 'conditional') {
+          // Highlight any attack card for conditional skills
+          hand.forEach(c => {
+            if (c.type === 'attack') potentialSkillsByCardName[c.name] = skill;
+          });
+        }
+      });
+    }
+  }
+
+  // Show hero selection phase
+  if (gamePhase === 'selection') {
+    return (
+      <HeroSelection
+        player1Picks={player1Picks}
+        player2Picks={player2Picks}
+        selectionTurn={selectionTurn}
+        onPickHero={handlePickHero}
+        onStartGame={startGame}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white p-8 flex gap-6">
       {/* Main Game Area */}
@@ -372,10 +442,10 @@ function App() {
           skill={triggeredSkill} 
           visible={skillIndicatorVisible} 
         /> */}
-        <SkillIndicatorWithTooltip 
+        <SkillIndicatorWithTooltip
           skill={triggeredSkill}
-          visible={skillVisible}
-          onClose={() => setSkillVisible(false)}
+          visible={skillIndicatorVisible}
+          onClose={() => setSkillIndicatorVisible(false)}
         />
 
         <Battlefield 
@@ -425,7 +495,7 @@ function App() {
           getActiveHero={getActiveHero}
         />
 
-        <Hand 
+        <Hand
           displayHand={displayHand}
           displayPlayer={displayPlayer}
           gameStarted={gameStarted}
@@ -436,6 +506,7 @@ function App() {
           canPlayCard={canPlayCard}
           playCard={playCard}
           getCardVisual={getCardVisual}
+          potentialSkillsByCardName={potentialSkillsByCardName}
         />
 
         {!gameOver && gameStarted && (

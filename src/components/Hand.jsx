@@ -1,6 +1,7 @@
 import React from 'react';
+import { CompactSkillTooltip } from './Skilltooltip';
 
-const Hand = ({ displayHand, displayPlayer, gameStarted, gameOver, drawnCard, waitingForReaction, waitingForDiscard, canPlayCard, playCard, getCardVisual }) => {
+const Hand = ({ displayHand, displayPlayer, gameStarted, gameOver, drawnCard, waitingForReaction, waitingForDiscard, canPlayCard, playCard, getCardVisual, potentialSkillsByCardName = {} }) => {
   if (displayHand.length === 0 || !gameStarted || gameOver) return null;
 
   return (
@@ -15,23 +16,33 @@ const Hand = ({ displayHand, displayPlayer, gameStarted, gameOver, drawnCard, wa
           const isPlayable = waitingForDiscard ? true : canPlayCard(card);
           const isNewlyDrawn = drawnCard && card.id === drawnCard.id;
           const visual = getCardVisual(card);
+          const skillForCard = potentialSkillsByCardName[card.name];
 
-          return (
+          const btn = (
             <button
-              key={card.id}
               onClick={() => playCard(card)}
               disabled={!waitingForDiscard && !isPlayable}
               className={`p-6 rounded-lg border-2 min-w-[140px] ${visual.color} ${!waitingForDiscard && !isPlayable ? 'opacity-40' : 'hover:scale-105'
-                } ${isNewlyDrawn ? 'ring-4 ring-green-400 animate-pulse' : ''}`}
+                } ${isNewlyDrawn ? 'ring-4 ring-green-400 animate-pulse' : ''} ${skillForCard ? 'ring-2 ring-purple-400' : ''}`}
             >
               <div className="font-bold text-lg mb-2">
                 {card.name}
                 {isNewlyDrawn && <span className="text-green-400 ml-1">✨</span>}
+                {skillForCard && !isNewlyDrawn && <span className="text-purple-400 ml-1">⚡</span>}
               </div>
               <div className="text-2xl font-bold">{visual.icon} {visual.label}</div>
               <div className="text-xs text-gray-400 mt-1">{card.type.toUpperCase()}</div>
             </button>
           );
+
+          if (skillForCard) {
+            return (
+              <CompactSkillTooltip key={card.id} skill={skillForCard}>
+                {btn}
+              </CompactSkillTooltip>
+            );
+          }
+          return <React.Fragment key={card.id}>{btn}</React.Fragment>;
         })}
       </div>
     </div>

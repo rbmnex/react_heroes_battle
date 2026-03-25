@@ -24,6 +24,7 @@ export const confirmEndTurnController = (
   setHeroAttackCounts,
   setHeroSupportCounts,
   setIsFirstAttackOfHero,
+  setSupportHistory,
   setGameOver,
   setWinner,
   addLog
@@ -53,6 +54,7 @@ export const confirmEndTurnController = (
   setHeroAttackCounts({});
   setHeroSupportCounts({});
   setIsFirstAttackOfHero(false);
+  if (setSupportHistory) setSupportHistory([]);
 
   // Refill next player's hand
   if (nextPlayer === 'player1') {

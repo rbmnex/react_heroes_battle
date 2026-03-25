@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { getDetailedSkillInfo, generateSkillTooltip } from '../utils/skillTooltipEnhanced';
 
 /**
@@ -209,7 +209,17 @@ export const SkillList = ({ skills, heroName }) => {
  */
 export const SkillIndicatorWithTooltip = ({ skill, visible, onClose }) => {
   const [showDetails, setShowDetails] = useState(false);
-  
+
+  useEffect(() => {
+    if (visible) {
+      const timer = setTimeout(() => {
+        setShowDetails(false);
+        onClose?.();
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [visible]);
+
   if (!visible || !skill) return null;
   
   const info = getDetailedSkillInfo(skill);

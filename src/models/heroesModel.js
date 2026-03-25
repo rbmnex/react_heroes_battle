@@ -66,7 +66,7 @@ export const HEROES = {
     maxHp: 40,
     description: 'Skilled gunner with high damage',
     image: gunnerImage,
-    heroSkill: HERO_SKILLS.RAPID_FIRE
+    heroSkill: HERO_SKILLS.SNIPER_FOCUS
   },
   CLERIC: {
     id: 6,
@@ -81,7 +81,12 @@ export const HEROES = {
 };
 
 /**
- * HERO TEAMS CONFIGURATION
+ * ALL HEROES - flat array for hero selection phase
+ */
+export const ALL_HEROES = Object.values(HEROES);
+
+/**
+ * HERO TEAMS CONFIGURATION (default/fallback)
  * Organized by team for easy access
  */
 export const HERO_TEAMS = {
@@ -113,6 +118,17 @@ export const createHeroInstance = (heroDefinition) => ({
 export const createAllHeroes = () => ({
   player1: HERO_TEAMS.player1.map(createHeroInstance),
   player2: HERO_TEAMS.player2.map(createHeroInstance)
+});
+
+/**
+ * Create heroes from player selections
+ * @param {Array} player1Picks - Array of hero definitions chosen by player 1
+ * @param {Array} player2Picks - Array of hero definitions chosen by player 2
+ * @returns {Object} Heroes organized by team with game state
+ */
+export const createHeroesFromSelection = (player1Picks, player2Picks) => ({
+  player1: player1Picks.map(createHeroInstance),
+  player2: player2Picks.map(createHeroInstance)
 });
 
 /**

@@ -1,5 +1,5 @@
 import React from 'react';
-import { getSkillTooltipText } from '../utils/skillTooltip';
+import SkillTooltip from './Skilltooltip';
 
 const Battlefield = ({ heroes, currentTurn, activeHeroIndex, selectingTarget, selectingSupportTarget, waitingForReaction, pendingAttack, gameStarted, setActiveHeroIndex, selectTarget, addLog }) => {
   return (
@@ -33,12 +33,11 @@ const Battlefield = ({ heroes, currentTurn, activeHeroIndex, selectingTarget, se
                 <h3 className="text-lg font-bold">{hero.name}</h3>
                 <p className="text-sm text-gray-400">{hero.job.icon} {hero.job.name}</p>
                 {hero.heroSkill && (
-                  <p 
-                    className="text-xs text-purple-300 mt-1 cursor-help hover:text-purple-200 transition-colors"
-                    title={getSkillTooltipText(hero.heroSkill)}
-                  >
-                    {hero.heroSkill.icon} {hero.heroSkill.name}
-                  </p>
+                  <SkillTooltip skill={hero.heroSkill} position="bottom">
+                    <p className="text-xs text-purple-300 mt-1 cursor-help hover:text-purple-200 transition-colors">
+                      {hero.heroSkill.icon} {hero.heroSkill.name}
+                    </p>
+                  </SkillTooltip>
                 )}
                 {hero.defeated && <span className="text-2xl ml-2">☠️</span>}
               </div>
@@ -114,12 +113,11 @@ const Battlefield = ({ heroes, currentTurn, activeHeroIndex, selectingTarget, se
                 <h3 className="text-lg font-bold">{hero.name}</h3>
                 <p className="text-sm text-gray-400">{hero.job.icon} {hero.job.name}</p>
                 {hero.heroSkill && (
-                  <p 
-                    className="text-xs text-purple-300 mt-1 cursor-help hover:text-purple-200 transition-colors"
-                    title={getSkillTooltipText(hero.heroSkill)}
-                  >
-                    {hero.heroSkill.icon} {hero.heroSkill.name}
-                  </p>
+                  <SkillTooltip skill={hero.heroSkill} position="bottom">
+                    <p className="text-xs text-purple-300 mt-1 cursor-help hover:text-purple-200 transition-colors">
+                      {hero.heroSkill.icon} {hero.heroSkill.name}
+                    </p>
+                  </SkillTooltip>
                 )}
                 {hero.defeated && <span className="text-2xl ml-2">☠️</span>}
               </div>

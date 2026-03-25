@@ -3,14 +3,6 @@ import React from 'react';
 const Controls = ({ gameStarted, gameOver, waitingForReaction, waitingForDiscard, waitingForNextAttack, selectingTarget, turnCount, currentPlayerHand, drawUsedThisTurn, pendingAttack, isFirstAttackOfHero, pendingAttackCard, selectingSupportTarget, pendingSupportCard, remainingAttacks, startGame, skipBlock, drawOneAndDiscard, confirmEndTurn, cancelAttack, getActiveHero }) => {
   return (
     <div className="max-w-7xl mx-auto mb-8 text-center">
-      {!gameStarted && !gameOver && (
-        <div>
-          <button onClick={startGame} className="bg-green-600 hover:bg-green-700 px-12 py-4 rounded-lg font-bold text-2xl">
-            Start 3v3 Battle
-          </button>
-        </div>
-      )}
-
       {waitingForReaction && pendingAttack && (
         <div className="bg-yellow-900 p-6 rounded-lg border-2 border-yellow-500">
           <p className="text-xl mb-4 font-bold">

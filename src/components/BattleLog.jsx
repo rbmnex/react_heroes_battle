@@ -8,7 +8,7 @@ const BattleLog = ({ gameLog }) => {
         {gameLog.length === 0 ? (
           <p className="text-gray-500 text-center py-8">Battle not started</p>
         ) : (
-          gameLog.map((log, i) => <p key={i} className="text-sm text-gray-300">{log}</p>)
+          [...gameLog].reverse().map((log, i) => <p key={gameLog.length - 1 - i} className="text-sm text-gray-300">{log}</p>)
         )}
       </div>
     </div>
