@@ -66,8 +66,10 @@ const matchSkillTrigger = (skill, activeBuff, attackCard, attackKey, isFirstAtta
 
     case 'elemental+heavy': {
       // e.g. Elemental Mastery: any elemental magic buff + Blast
+      // e.g. Frost Nova: specifically Ice buff + Blast
       if (!activeBuff) return null;
       if (activeBuff.buffType !== 'elementalMagic') return null;
+      if (trigger.requiredElement && activeBuff.element !== trigger.requiredElement) return null;
       if (attackKey !== trigger.requiredAttack) return null;
       return skill;
     }
@@ -130,7 +132,8 @@ export const checkSkillOnSupport = (
   supportHistory,
   targetHeroId,
   heroes,
-  currentTurn
+  currentTurn,
+  activeBuff
 ) => {
   if (hero.statusEffects.some(e => e.preventSkills)) return null;
 
@@ -159,6 +162,7 @@ export const checkSkillOnSupport = (
 
     case 'multi-support': {
       // e.g. Divine Protection: 2x Shield on different allies
+      // e.g. Blessing: 2x Heal on same ally
       const requiredCardName = trigger.requiredCard;
       const fullHistory = [...supportHistory, { cardKey: getCardTypeKey(supportCard.name), targetHeroId }];
       const matchingPlays = fullHistory.filter(h => h.cardKey === requiredCardName);
@@ -167,11 +171,20 @@ export const checkSkillOnSupport = (
         const uniqueTargets = new Set(matchingPlays.map(h => h.targetHeroId));
         if (uniqueTargets.size < trigger.minCount) return null;
       }
+      if (trigger.sameTarget === true) {
+        const recent = matchingPlays.slice(-trigger.minCount);
+        const allSameTarget = recent.every(h => h.targetHeroId === recent[0].targetHeroId);
+        if (!allSameTarget) return null;
+      }
       return heroSkill;
     }
 
     case 'buff+support': {
       // e.g. Purification: Cure + Shield on same target consecutively
+      // e.g. Blessing: Charge buff + Heal
+      if (trigger.requiredBuff) {
+        if (!activeBuff || activeBuff.buffType !== trigger.requiredBuff) return null;
+      }
       if (!trigger.requiredCards) return null;
       const fullHistory = [...supportHistory, { cardKey: getCardTypeKey(supportCard.name), targetHeroId }];
       if (fullHistory.length < trigger.requiredCards.length) return null;
@@ -324,7 +337,8 @@ export const applySupportSkillEffects = (
   heroes,
   currentTurn,
   setHeroes,
-  addLog
+  addLog,
+  casterIndex
 ) => {
   if (!skill) return;
 
@@ -335,16 +349,24 @@ export const applySupportSkillEffects = (
 
   if (effect.type === 'area_heal') {
     // Mass Heal: heal all allies and remove DOT effects
+    // Blessing: heal all allies, only caster gets stunned
+    const caster = heroes[currentTurn][casterIndex];
     setHeroes(prev => ({
       ...prev,
       [currentTurn]: prev[currentTurn].map(h => {
         if (h.defeated) return h;
         const newHp = Math.min(h.maxHp, h.hp + effect.healAmount);
-        const cleansedEffects = effect.removesStatus
+        let updatedEffects = effect.removesStatus
           ? h.statusEffects.filter(e => !effect.removesStatus.includes(e.type))
-          : h.statusEffects;
-        addLog(`${skill.icon} ${h.name} heals ${effect.healAmount} HP! (${h.hp} -> ${newHp})`);
-        return { ...h, hp: newHp, statusEffects: cleansedEffects };
+          : [...h.statusEffects];
+        const isCaster = caster && h.id === caster.id;
+        if (effect.appliesStatus && isCaster) {
+          updatedEffects = [...updatedEffects, { type: effect.appliesStatus, duration: effect.statusDuration || 1 }];
+          addLog(`${skill.icon} ${h.name} heals ${effect.healAmount} HP but is STUNNED! (${h.hp} -> ${newHp})`);
+        } else {
+          addLog(`${skill.icon} ${h.name} heals ${effect.healAmount} HP! (${h.hp} -> ${newHp})`);
+        }
+        return { ...h, hp: newHp, statusEffects: updatedEffects };
       })
     }));
     if (effect.removesStatus) {
@@ -421,6 +443,7 @@ const checkPotentialTrigger = (skill, hand, activeBuff) => {
 
     case 'elemental+heavy': {
       if (!activeBuff || activeBuff.buffType !== 'elementalMagic') return false;
+      if (trigger.requiredElement && activeBuff.element !== trigger.requiredElement) return false;
       const requiredName = CARD_TYPES[trigger.requiredAttack]?.name;
       return hand.some(c => c.name === requiredName);
     }

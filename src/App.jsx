@@ -271,7 +271,8 @@ function App() {
         supportHistory,
         setSupportHistory,
         setTriggeredSkill,
-        setSkillIndicatorVisible
+        setSkillIndicatorVisible,
+        activeBuff
       );
       return;
     }

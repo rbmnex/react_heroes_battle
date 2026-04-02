@@ -22,7 +22,8 @@ export const selectSupportTargetController = (
   supportHistory,
   setSupportHistory,
   setTriggeredSkill,
-  setSkillIndicatorVisible
+  setSkillIndicatorVisible,
+  activeBuff
 ) => {
   const supportCard = pendingSupportCard;
   const team = heroes[currentTurn];
@@ -93,12 +94,13 @@ export const selectSupportTargetController = (
     supportHistory || [],
     heroId,
     heroes,
-    currentTurn
+    currentTurn,
+    activeBuff
   );
 
   if (triggeredSkill) {
     addLog(`--- ${triggeredSkill.icon} SKILL ACTIVATED: ${triggeredSkill.name}! ---`);
-    applySupportSkillEffects(triggeredSkill, heroes, currentTurn, setHeroes, addLog);
+    applySupportSkillEffects(triggeredSkill, heroes, currentTurn, setHeroes, addLog, activeHeroIndex);
     if (setTriggeredSkill) {
       setTriggeredSkill(triggeredSkill);
       setSkillIndicatorVisible(true);

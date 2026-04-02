@@ -96,9 +96,10 @@ export const HERO_SKILLS = {
     icon: '🔫',
     jobClass: 'Ranged',
     trigger: {
-      type: 'multi-card',
-      requiredCard: 'NORMAL_SHOT',
-      minCount: 3 // Must have 3+ Normal Shots in sequence
+      type: 'buff+multi-attack',
+      requiredBuff: 'ready',
+      requiredAttack: 'NORMAL_SHOT',
+      minAttacks: 2 // Ready buff + 2 Quick Shots
     },
     effect: {
       type: 'multi_target',
@@ -194,17 +195,17 @@ export const HERO_SKILLS = {
     icon: '❄️',
     jobClass: 'Mage',
     trigger: {
-      type: 'elemental+multi',
-      requiredBuff: 'ICE_MAGIC',
-      requiredAttacks: 2, // Must use 2 attacks with Ice buff
-      mustBeConsecutive: true
+      type: 'elemental+heavy',
+      requiredBuff: 'elementalMagic',
+      requiredElement: 'ice', // Must specifically be Ice buff
+      requiredAttack: 'HEAVY_MAGIC'
     },
     effect: {
       type: 'area_status',
       targetsAllEnemies: true,
       statusEffect: 'FREEZE',
       statusDuration: 1,
-      damage: 1 // Each enemy takes 1 damage
+      damage: 3 // Each enemy takes 3 damage (boosted since trigger is easier)
     }
   },
 
@@ -270,20 +271,21 @@ export const HERO_SKILLS = {
   BLESSING: {
     id: 'BLESSING',
     name: 'Blessing',
-    description: 'Grant divine strength to an ally',
+    description: 'Sacrificial prayer that heals all allies but stuns them',
     icon: '🙏',
     jobClass: 'Support',
     trigger: {
-      type: 'triple-support',
-      requiredCard: 'HEAL',
-      minCount: 3
+      type: 'buff+support',
+      requiredBuff: 'charge',
+      requiredCards: ['HEAL'],
+      mustBeConsecutive: false
     },
     effect: {
-      type: 'temporary_buff',
-      damageBonus: 3, // Target deals +3 damage
-      defenseBonus: 3, // Target takes -3 damage
-      duration: 2, // Lasts 2 turns
-      singleTarget: true
+      type: 'area_heal',
+      targetsAllAllies: true,
+      healAmount: 6,
+      appliesStatus: 'STUN',
+      statusDuration: 1 // All healed allies stunned next turn
     }
   },
 

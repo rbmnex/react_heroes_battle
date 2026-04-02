@@ -23,11 +23,13 @@ const Controls = ({ gameStarted, gameOver, waitingForReaction, waitingForDiscard
               </button>
             </div>
           )}
-          <div>
-            <button onClick={confirmEndTurn} className="bg-purple-600 hover:bg-purple-700 px-8 py-3 rounded-lg font-bold">
-              End Turn
-            </button>
-          </div>
+          {!waitingForDiscard && (
+            <div>
+              <button onClick={confirmEndTurn} className="bg-purple-600 hover:bg-purple-700 px-8 py-3 rounded-lg font-bold">
+                End Turn
+              </button>
+            </div>
+          )}
           {waitingForDiscard && (
             <div className="bg-orange-900 p-4 rounded-lg">
               <p className="font-bold">🃏 Select card to discard</p>

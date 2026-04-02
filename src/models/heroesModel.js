@@ -1,6 +1,7 @@
 // Heroes Model - Centralized hero definitions and utilities
 import { JOB_CLASSES } from './jobClasses';
 import { HERO_SKILLS } from './heroSkills';
+import { CARD_TYPES } from './cardTypes';
 
 // Import hero images
 import swordmanImage from '../assets/models/swordman_square.png';
@@ -24,7 +25,12 @@ export const HEROES = {
     maxHp: 60,
     description: 'A strong melee fighter with high HP',
     image: swordmanImage,
-    heroSkill: HERO_SKILLS.POWER_STRIKE
+    heroSkill: HERO_SKILLS.POWER_STRIKE,
+    cardPool: [
+      CARD_TYPES.NORMAL_ATTACK, CARD_TYPES.NORMAL_ATTACK,
+      CARD_TYPES.HEAVY_ATTACK, CARD_TYPES.HEAVY_ATTACK,
+      CARD_TYPES.COUNTER,
+    ]
   },
   ARCHER: {
     id: 2,
@@ -34,7 +40,12 @@ export const HEROES = {
     maxHp: 40,
     description: 'Precise ranged attacker',
     image: archerImage,
-    heroSkill: HERO_SKILLS.HEADSHOT
+    heroSkill: HERO_SKILLS.HEADSHOT,
+    cardPool: [
+      CARD_TYPES.NORMAL_SHOT, CARD_TYPES.NORMAL_SHOT,
+      CARD_TYPES.CHARGE_SHOT, CARD_TYPES.CHARGE_SHOT,
+      CARD_TYPES.COUNTER,
+    ]
   },
   WIZARD: {
     id: 3,
@@ -44,7 +55,14 @@ export const HEROES = {
     maxHp: 40,
     description: 'Powerful mage with elemental magic',
     image: wizardImage,
-    heroSkill: HERO_SKILLS.ELEMENTAL_MASTERY
+    heroSkill: HERO_SKILLS.ELEMENTAL_MASTERY,
+    cardPool: [
+      CARD_TYPES.NORMAL_MAGIC, CARD_TYPES.NORMAL_MAGIC,
+      CARD_TYPES.HEAVY_MAGIC, CARD_TYPES.HEAVY_MAGIC,
+      CARD_TYPES.FIRE_MAGIC, CARD_TYPES.ICE_MAGIC,
+      CARD_TYPES.LIGHTNING_MAGIC,
+      CARD_TYPES.DEFLECT,
+    ]
   },
 
   // Player 2 Team
@@ -56,7 +74,12 @@ export const HEROES = {
     maxHp: 65,
     description: 'A tough melee combatant',
     image: warriorImage,
-    heroSkill: HERO_SKILLS.BLADE_FURY
+    heroSkill: HERO_SKILLS.BLADE_FURY,
+    cardPool: [
+      CARD_TYPES.NORMAL_ATTACK, CARD_TYPES.NORMAL_ATTACK,
+      CARD_TYPES.HEAVY_ATTACK, CARD_TYPES.HEAVY_ATTACK,
+      CARD_TYPES.COUNTER,
+    ]
   },
   GUNNER: {
     id: 5,
@@ -66,7 +89,12 @@ export const HEROES = {
     maxHp: 40,
     description: 'Skilled gunner with high damage',
     image: gunnerImage,
-    heroSkill: HERO_SKILLS.SNIPER_FOCUS
+    heroSkill: HERO_SKILLS.SNIPER_FOCUS,
+    cardPool: [
+      CARD_TYPES.NORMAL_SHOT, CARD_TYPES.NORMAL_SHOT,
+      CARD_TYPES.NORMAL_SHOT, CARD_TYPES.NORMAL_SHOT,
+      CARD_TYPES.COUNTER,
+    ]
   },
   CLERIC: {
     id: 6,
@@ -76,7 +104,13 @@ export const HEROES = {
     maxHp: 45,
     description: 'Healer and support specialist',
     image: clericImage,
-    heroSkill: HERO_SKILLS.MASS_HEAL
+    heroSkill: HERO_SKILLS.MASS_HEAL,
+    cardPool: [
+      CARD_TYPES.NORMAL_MAGIC,
+      CARD_TYPES.HEAVY_MAGIC,
+      CARD_TYPES.CURE, CARD_TYPES.SHIELD, CARD_TYPES.HEAL,
+      CARD_TYPES.DEFLECT,
+    ]
   }
 };
 
@@ -108,7 +142,8 @@ export const createHeroInstance = (heroDefinition) => ({
   defeated: false,
   statusEffects: [],
   shield: 0,
-  heroSkill: heroDefinition.heroSkill
+  heroSkill: heroDefinition.heroSkill,
+  cardPool: heroDefinition.cardPool || []
 });
 
 /**
